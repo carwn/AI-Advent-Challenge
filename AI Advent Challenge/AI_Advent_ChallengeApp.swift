@@ -9,9 +9,12 @@ import SwiftUI
 
 @main
 struct AI_Advent_ChallengeApp: App {
+    @StateObject private var container = DependencyContainer()
+
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(container)
         }
     }
 }
