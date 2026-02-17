@@ -51,6 +51,31 @@ struct ChatView: View {
                     .padding(.vertical, 8)
             }
 
+            // Message history chips
+            if !viewModel.historyStore.items.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(viewModel.historyStore.items.reversed(), id: \.self) { msg in
+                            Button {
+                                viewModel.inputText = msg
+                            } label: {
+                                Text(msg)
+                                    .font(.caption)
+                                    .lineLimit(1)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(Color(uiColor: .secondarySystemBackground))
+                                    .clipShape(Capsule())
+                                    .frame(maxWidth: UIScreen.main.bounds.width * 0.6, alignment: .leading)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 4)
+                }
+            }
+
             // Input field
             HStack(spacing: 12) {
                 TextField("Введите сообщение...", text: $viewModel.inputText, axis: .vertical)

@@ -19,12 +19,20 @@ final class ChatViewModel: ObservableObject {
     private var conversationId: UUID!
     private var cancellables = Set<AnyCancellable>()
 
+    let historyStore: MessageHistoryStore
+
     init(
         sendMessageUseCase: SendMessageUseCase,
-        conversation: Conversation
+        conversation: Conversation,
+        historyStore: MessageHistoryStore
     ) {
         self.sendMessageUseCase = sendMessageUseCase
+        self.historyStore = historyStore
         setup(conversation)
+
+        historyStore.objectWillChange
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
     }
     
     func setup(_ conversation: Conversation) {
@@ -38,6 +46,7 @@ final class ChatViewModel: ObservableObject {
         }
 
         let messageText = inputText
+        historyStore.add(messageText)
         inputText = ""
         isLoading = true
         error = nil

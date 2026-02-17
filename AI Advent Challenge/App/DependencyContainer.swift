@@ -27,6 +27,9 @@ final class DependencyContainer: ObservableObject {
     // Domain Layer
     private lazy var toolExecutor: ToolExecutor = DefaultToolExecutor()
 
+    // Presentation Layer
+    lazy var messageHistoryStore = MessageHistoryStore()
+
     // Use Cases
     private func makeCreateAgentUseCase() -> CreateAgentUseCase {
         CreateAgentUseCase(
@@ -49,7 +52,8 @@ final class DependencyContainer: ObservableObject {
 
         return ChatViewModel(
             sendMessageUseCase: sendMessageUseCase,
-            conversation: conversation
+            conversation: conversation,
+            historyStore: messageHistoryStore
         )
     }
 
