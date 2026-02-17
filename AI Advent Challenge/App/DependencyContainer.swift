@@ -14,7 +14,8 @@ final class DependencyContainer: ObservableObject {
     // Infrastructure
     private lazy var keychainService = KeychainService()
     private lazy var apiKeyManager = APIKeyManager(keychainService: keychainService)
-    private lazy var networkClient = NetworkClient()
+    private lazy var networkLogger: NetworkLogger = OSNetworkLogger()
+    private lazy var networkClient = NetworkClient(logger: networkLogger)
 
     // Data Layer
     private lazy var providerFactory = ProviderFactory(
