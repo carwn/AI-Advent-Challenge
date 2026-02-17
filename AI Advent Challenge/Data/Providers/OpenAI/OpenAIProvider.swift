@@ -26,14 +26,16 @@ final class OpenAIProvider: LLMProvider {
         messages: [Message],
         tools: [ToolDefinition]? = nil,
         temperature: Double = 0.7,
-        maxTokens: Int? = nil
+        maxTokens: Int? = nil,
+        stop: [String]? = nil
     ) async throws -> AgentResponse {
         let request = OpenAIRequest(
             model: modelName,
             messages: messages.map { $0.toOpenAIMessage() },
             tools: tools,
             temperature: temperature,
-            maxTokens: maxTokens
+            maxTokens: maxTokens,
+            stop: stop
         )
 
         let endpoint = APIEndpoint.openAIChatCompletion

@@ -31,7 +31,8 @@ extension Agent {
             messages: conversation.messages,
             tools: agentType.availableTools,
             temperature: 0.7,
-            maxTokens: nil
+            maxTokens: nil,
+            stop: nil
         )
 
         return response
@@ -62,7 +63,8 @@ extension Agent {
             messages: conversation.messages,
             tools: agentType.availableTools,
             temperature: 0.7,
-            maxTokens: nil
+            maxTokens: nil,
+            stop: nil
         )
 
         return finalResponse

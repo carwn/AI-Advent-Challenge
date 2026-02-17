@@ -13,6 +13,7 @@ struct OpenAIRequest: Encodable {
     let tools: [ToolDefinition]?
     let temperature: Double
     let maxTokens: Int?
+    let stop: [String]?
 
     enum CodingKeys: String, CodingKey {
         case model
@@ -20,6 +21,7 @@ struct OpenAIRequest: Encodable {
         case tools
         case temperature
         case maxTokens = "max_tokens"
+        case stop
     }
 }
 

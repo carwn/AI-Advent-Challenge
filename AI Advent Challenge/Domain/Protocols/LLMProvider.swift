@@ -14,6 +14,7 @@ protocol LLMProvider {
         messages: [Message],
         tools: [ToolDefinition]?,
         temperature: Double,
-        maxTokens: Int?
+        maxTokens: Int?,
+        stop: [String]?
     ) async throws -> AgentResponse
 }
