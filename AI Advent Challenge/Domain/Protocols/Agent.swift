@@ -32,7 +32,7 @@ extension Agent {
             tools: agentType.availableTools,
             temperature: 0.7,
             maxTokens: nil,
-            stop: nil
+            stop: agentType.stopWords
         )
 
         return response
