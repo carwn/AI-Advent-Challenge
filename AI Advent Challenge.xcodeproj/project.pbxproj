@@ -8,6 +8,7 @@
 
 /* Begin PBXFileReference section */
 		6D7544552F43794C00DEB8B8 /* AI Advent Challenge.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "AI Advent Challenge.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		6D7544632F43794D00DEB8B8 /* CLAUDE.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CLAUDE.md; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -34,6 +35,7 @@
 			children = (
 				6D7544572F43794C00DEB8B8 /* AI Advent Challenge */,
 				6D7544562F43794C00DEB8B8 /* Products */,
+				6D7544632F43794D00DEB8B8 /* CLAUDE.md */,
 			);
 			sourceTree = "<group>";
 		};
