@@ -25,7 +25,7 @@ struct ContentView: View {
                     welcomeView
                 }
             }
-            .navigationTitle("AI Assistant")
+            .navigationTitle("AI Ассистент")
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     if let selectedAgentType = selectedConversation?.agentType {
@@ -65,11 +65,11 @@ struct ContentView: View {
                     SettingsView(viewModel: container.makeSettingsViewModel())
                 }
             }
-            .alert("Configuration Required", isPresented: $showingError) {
-                Button("Open Settings") {
+            .alert("Требуется настройка", isPresented: $showingError) {
+                Button("Открыть настройки") {
                     showingSettings = true
                 }
-                Button("Cancel", role: .cancel) { }
+                Button("Отмена", role: .cancel) { }
             } message: {
                 Text(errorMessage)
             }
@@ -82,14 +82,14 @@ struct ContentView: View {
                 .font(.system(size: 80))
                 .foregroundStyle(.tint)
 
-            Text("AI Agent Assistant")
+            Text("AI Ассистент")
                 .font(.title)
                 .fontWeight(.bold)
 
-            Text("Select an agent to start")
+            Text("Выберите агента для начала")
                 .foregroundStyle(.secondary)
 
-            Button("Choose Agent") {
+            Button("Выбрать агента") {
                 showingAgentSelection = true
             }
             .buttonStyle(.borderedProminent)

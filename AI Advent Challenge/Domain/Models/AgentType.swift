@@ -8,12 +8,12 @@
 import Foundation
 
 enum AgentType: String, CaseIterable, Identifiable {
-    case general = "General Assistant"
-    case weather = "Weather Agent"
-    case weatherJSON = "Weather Agent (JSON)"
-    case calculator = "Calculator Agent"
-    case research = "Research Agent"
-    case bulletList = "Bullet List Agent"
+    case general = "Универсальный ассистент"
+    case weather = "Агент погоды"
+    case weatherJSON = "Агент погоды (JSON)"
+    case calculator = "Агент-калькулятор"
+    case research = "Агент-исследователь"
+    case bulletList = "Агент-список"
     case motherInLaw = "Агент-Трискаидекафоб"
 
     var id: String { rawValue }
@@ -96,17 +96,17 @@ enum AgentType: String, CaseIterable, Identifiable {
     var description: String {
         switch self {
         case .general:
-            return "Multi-purpose assistant with access to weather, calculator, and search tools"
+            return "Универсальный ассистент с доступом к погоде, калькулятору и поиску"
         case .weather:
-            return "Specialized in providing weather information for any location"
+            return "Специализируется на предоставлении информации о погоде в любом месте"
         case .weatherJSON:
-            return "Returns weather information as a structured JSON object"
+            return "Возвращает информацию о погоде в виде структурированного JSON-объекта"
         case .calculator:
-            return "Performs mathematical calculations and operations"
+            return "Выполняет математические вычисления и операции"
         case .research:
-            return "Searches and summarizes information from various sources"
+            return "Ищет и резюмирует информацию из различных источников"
         case .bulletList:
-            return "Answers any question as a bullet list of up to 5 key points"
+            return "Отвечает на любой вопрос в виде списка до 5 ключевых пунктов"
         case .motherInLaw:
             return "Панически боится числа 13 и останавливает генерацию при его упоминании"
         }

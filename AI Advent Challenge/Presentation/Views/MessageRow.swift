@@ -25,7 +25,7 @@ struct MessageRow: View {
 
                 if let toolCalls = message.toolCalls, !toolCalls.isEmpty {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Tool Calls:")
+                        Text("Вызовы инструментов:")
                             .font(.caption)
                             .foregroundStyle(.secondary)
 

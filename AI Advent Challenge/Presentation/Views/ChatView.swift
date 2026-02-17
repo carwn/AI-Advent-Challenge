@@ -25,7 +25,7 @@ struct ChatView: View {
                         if viewModel.isLoading {
                             HStack {
                                 ProgressView()
-                                Text("Thinking...")
+                                Text("Думаю...")
                                     .foregroundStyle(.secondary)
                             }
                             .padding()
@@ -53,7 +53,7 @@ struct ChatView: View {
 
             // Input field
             HStack(spacing: 12) {
-                TextField("Type a message...", text: $viewModel.inputText, axis: .vertical)
+                TextField("Введите сообщение...", text: $viewModel.inputText, axis: .vertical)
                     .textFieldStyle(.roundedBorder)
                     .focused($isInputFocused)
                     .onSubmit {

@@ -43,11 +43,11 @@ struct AgentSelectionView: View {
                 }
                 .buttonStyle(.plain)
             }
-            .navigationTitle("Choose Agent")
+            .navigationTitle("Выбор агента")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+                    Button("Отмена") {
                         dismiss()
                     }
                 }

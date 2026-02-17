@@ -14,25 +14,25 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section {
-                SecureField("API Key", text: $viewModel.openAIKey)
+                SecureField("API-ключ", text: $viewModel.openAIKey)
                     .textContentType(.password)
 
-                Button("Save API Key") {
+                Button("Сохранить API-ключ") {
                     viewModel.saveAPIKey()
                 }
                 .disabled(viewModel.openAIKey.isEmpty)
 
-                Button("Delete API Key", role: .destructive) {
+                Button("Удалить API-ключ", role: .destructive) {
                     viewModel.deleteAPIKey()
                 }
                 .disabled(viewModel.openAIKey.isEmpty)
             } header: {
-                Text("ProxyAPI.ru Configuration")
+                Text("Настройка ProxyAPI.ru")
             } footer: {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Your API key is stored securely in the Keychain and never shared.")
+                    Text("Ваш API-ключ хранится в Keychain и никуда не передаётся.")
                         .font(.caption)
-                    Text("Get your key from: https://proxyapi.ru")
+                    Text("Получить ключ: https://proxyapi.ru")
                         .font(.caption)
                         .foregroundStyle(.blue)
                 }
@@ -45,15 +45,15 @@ struct SettingsView: View {
                 }
             }
         }
-        .navigationTitle("Settings")
-        .alert("Success", isPresented: $viewModel.showingSaveSuccess) {
+        .navigationTitle("Настройки")
+        .alert("Готово", isPresented: $viewModel.showingSaveSuccess) {
             Button("OK", role: .cancel) { }
         } message: {
-            Text("API key saved successfully")
+            Text("API-ключ сохранён")
         }
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button("Cancel") {
+                Button("Отмена") {
                     dismiss()
                 }
             }
