@@ -27,11 +27,17 @@ struct ToolDefinition: Codable {
         let type: String
         let description: String
         let enumValues: [String]?
+        let items: ItemsSchema?
+
+        struct ItemsSchema: Codable {
+            let type: String
+        }
 
         enum CodingKeys: String, CodingKey {
             case type
             case description
             case enumValues = "enum"
+            case items
         }
     }
 
@@ -48,7 +54,8 @@ struct ToolDefinition: Codable {
                         "location": PropertySchema(
                             type: "string",
                             description: "The city and state, e.g. San Francisco, CA",
-                            enumValues: nil
+                            enumValues: nil,
+                            items: nil
                         )
                     ],
                     required: ["location"]
@@ -69,12 +76,14 @@ struct ToolDefinition: Codable {
                         "operation": PropertySchema(
                             type: "string",
                             description: "The operation to perform",
-                            enumValues: ["add", "subtract", "multiply", "divide"]
+                            enumValues: ["add", "subtract", "multiply", "divide"],
+                            items: nil
                         ),
                         "operands": PropertySchema(
                             type: "array",
                             description: "The numbers to operate on",
-                            enumValues: nil
+                            enumValues: nil,
+                            items: PropertySchema.ItemsSchema(type: "number")
                         )
                     ],
                     required: ["operation", "operands"]
@@ -95,7 +104,8 @@ struct ToolDefinition: Codable {
                         "query": PropertySchema(
                             type: "string",
                             description: "The search query",
-                            enumValues: nil
+                            enumValues: nil,
+                            items: nil
                         )
                     ],
                     required: ["query"]

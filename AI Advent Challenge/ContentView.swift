@@ -100,16 +100,12 @@ struct ContentView: View {
     private func handleAgentSelection(_ conversation: Conversation) {
         selectedConversation = conversation
         showingAgentSelection = false
-        if let chatViewModel {
-            chatViewModel.setup(conversation)
-        } else {
-            do {
-                let viewModel = try container.makeChatViewModel(conversation: conversation)
-                chatViewModel = viewModel
-            } catch {
-                errorMessage = error.localizedDescription
-                showingError = true
-            }
+        do {
+            let viewModel = try container.makeChatViewModel(conversation: conversation)
+            chatViewModel = viewModel
+        } catch {
+            errorMessage = error.localizedDescription
+            showingError = true
         }
     }
 }

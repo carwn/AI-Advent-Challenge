@@ -29,17 +29,16 @@ enum AgentType: String, CaseIterable, Identifiable {
     }
 
     var availableTools: [ToolDefinition] {
-        []
-//        switch self {
-//        case .general:
-//            return [.weatherTool(), .calculatorTool(), .searchTool()]
-//        case .weather:
-//            return [.weatherTool()]
-//        case .calculator:
-//            return [.calculatorTool()]
-//        case .research:
-//            return [.searchTool()]
-//        }
+        switch self {
+        case .general:
+            return [.weatherTool(), .calculatorTool(), .searchTool()]
+        case .weather:
+            return [.weatherTool()]
+        case .calculator:
+            return [.calculatorTool()]
+        case .research:
+            return [.searchTool()]
+        }
     }
 
     var icon: String {

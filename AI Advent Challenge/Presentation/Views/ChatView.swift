@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct ChatView: View {
-    @StateObject var viewModel: ChatViewModel
+    @ObservedObject var viewModel: ChatViewModel
     @FocusState private var isInputFocused: Bool
 
     var body: some View {

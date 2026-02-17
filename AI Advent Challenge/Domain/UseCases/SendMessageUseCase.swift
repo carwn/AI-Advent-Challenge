@@ -25,17 +25,13 @@ final class SendMessageUseCase {
         repository.updateConversation(conversation)
 
         // Send initial message
-        var response = try await agent.sendMessage(message, in: conversation)
+        var response = try await agent.sendMessage(conversation: conversation)
         conversation.addMessage(response.message)
 
         // Execute tools if needed and continue
         if response.requiresToolExecution {
-            do {
-                response = try await agent.executeToolsAndContinue(response, in: conversation)
-                conversation.addMessage(response.message)
-            } catch {
-                conversation.addMessage(Message(role: .system, content: "Ошибка вызова инстумента"))
-            }
+            response = try await agent.executeToolsAndContinue(response, updating: &conversation)
+            conversation.addMessage(response.message)
         }
         repository.updateConversation(conversation)
         

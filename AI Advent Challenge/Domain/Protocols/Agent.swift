@@ -13,28 +13,22 @@ protocol Agent {
     var toolExecutor: ToolExecutor { get }
 
     func sendMessage(
-        _ content: String,
-        in conversation: Conversation
+        conversation: Conversation
     ) async throws -> AgentResponse
 
     func executeToolsAndContinue(
         _ response: AgentResponse,
-        in conversation: Conversation
+        updating conversation: inout Conversation
     ) async throws -> AgentResponse
 }
 
 // Default implementation
 extension Agent {
     func sendMessage(
-        _ content: String,
-        in conversation: Conversation
+        conversation: Conversation
     ) async throws -> AgentResponse {
-        let userMessage = Message(role: .user, content: content)
-        var updatedConversation = conversation
-        updatedConversation.addMessage(userMessage)
-
         let response = try await provider.complete(
-            messages: updatedConversation.messages,
+            messages: conversation.messages,
             tools: agentType.availableTools,
             temperature: 0.7,
             maxTokens: nil
@@ -45,17 +39,14 @@ extension Agent {
 
     func executeToolsAndContinue(
         _ response: AgentResponse,
-        in conversation: Conversation
+        updating conversation: inout Conversation
     ) async throws -> AgentResponse {
         guard response.requiresToolExecution,
               let toolCalls = response.message.toolCalls else {
             return response
         }
 
-        var updatedConversation = conversation
-        updatedConversation.addMessage(response.message)
-
-        // Execute all tool calls
+        // Execute all tool calls and add results directly to the caller's conversation
         for toolCall in toolCalls {
             let result = try await toolExecutor.execute(toolCall)
             let toolMessage = Message(
@@ -63,12 +54,12 @@ extension Agent {
                 content: result,
                 toolCallId: toolCall.id
             )
-            updatedConversation.addMessage(toolMessage)
+            conversation.addMessage(toolMessage)
         }
 
         // Continue conversation with tool results
         let finalResponse = try await provider.complete(
-            messages: updatedConversation.messages,
+            messages: conversation.messages,
             tools: agentType.availableTools,
             temperature: 0.7,
             maxTokens: nil
