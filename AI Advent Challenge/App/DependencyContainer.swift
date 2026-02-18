@@ -45,15 +45,24 @@ final class DependencyContainer: ObservableObject {
         )
     }
 
+    func setCustomAgentPrompt(_ prompt: String) {
+        conversationRepository.setSystemPromptForAgent(.customPrompt, prompt: prompt)
+    }
+
     // ViewModels
     func makeChatViewModel(conversation: Conversation) throws -> ChatViewModel {
         let agent = try makeCreateAgentUseCase().execute(agentType: conversation.agentType)
         let sendMessageUseCase = makeSendMessageUseCase(agent: agent)
 
+        let setCustomPromptAction: ((String) -> Void)? = conversation.agentType == .promptCrafter
+            ? { [weak self] prompt in self?.setCustomAgentPrompt(prompt) }
+            : nil
+
         return ChatViewModel(
             sendMessageUseCase: sendMessageUseCase,
             conversation: conversation,
-            historyStore: messageHistoryStore
+            historyStore: messageHistoryStore,
+            setCustomPromptAction: setCustomPromptAction
         )
     }
 

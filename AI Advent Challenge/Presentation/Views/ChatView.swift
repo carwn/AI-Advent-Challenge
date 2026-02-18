@@ -35,6 +35,17 @@ struct ChatView: View {
                         ForEach(viewModel.messages) { message in
                             MessageRow(message: message)
                                 .id(message.id)
+                                .contextMenu {
+                                    if message.role == .assistant,
+                                       viewModel.agentType == .promptCrafter {
+                                        Button {
+                                            viewModel.useAsCustomAgentPrompt(message.content)
+                                        } label: {
+                                            Label("Использовать как системный промпт",
+                                                  systemImage: "text.badge.checkmark")
+                                        }
+                                    }
+                                }
                         }
 
                         if viewModel.isLoading {

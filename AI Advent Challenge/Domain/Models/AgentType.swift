@@ -16,6 +16,7 @@ enum AgentType: String, CaseIterable, Identifiable {
     case stepByStep = "Пошаговый решатель"
     case promptCrafter = "Промпт-инженер"
     case multiExpert = "Совет экспертов"
+    case customPrompt = "Настраиваемый агент"
 
     var id: String { rawValue }
 
@@ -82,6 +83,8 @@ enum AgentType: String, CaseIterable, Identifiable {
             Always complete all three expert opinions before synthesizing.
             Keep each expert's opinion concise — 3–5 sentences maximum per expert.
             """
+        case .customPrompt:
+            return ""
         }
     }
 
@@ -90,7 +93,7 @@ enum AgentType: String, CaseIterable, Identifiable {
         case .stop13:
             return ["13"]
         case .general, .weather, .weatherJSON, .bulletList,
-             .stepByStep, .promptCrafter, .multiExpert:
+             .stepByStep, .promptCrafter, .multiExpert, .customPrompt:
             return nil
         }
     }
@@ -107,7 +110,7 @@ enum AgentType: String, CaseIterable, Identifiable {
             return []
         case .stop13:
             return []
-        case .stepByStep, .promptCrafter, .multiExpert:
+        case .stepByStep, .promptCrafter, .multiExpert, .customPrompt:
             return []
         }
     }
@@ -130,6 +133,8 @@ enum AgentType: String, CaseIterable, Identifiable {
             return "text.cursor"
         case .multiExpert:
             return "person.3"
+        case .customPrompt:
+            return "slider.horizontal.3"
         }
     }
 
@@ -151,6 +156,8 @@ enum AgentType: String, CaseIterable, Identifiable {
             return "Составляет оптимальный промпт для другого AI-агента"
         case .multiExpert:
             return "Привлекает трёх экспертов, получает их мнения и синтезирует вывод"
+        case .customPrompt:
+            return "Агент с системным промптом, сгенерированным Промпт-инженером"
         }
     }
 
@@ -164,6 +171,7 @@ enum AgentType: String, CaseIterable, Identifiable {
         case .stepByStep:   return 1000
         case .promptCrafter: return 800
         case .multiExpert:  return 2000
+        case .customPrompt: return 1000
         }
     }
 }

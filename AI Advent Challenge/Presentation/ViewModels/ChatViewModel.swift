@@ -14,9 +14,11 @@ final class ChatViewModel: ObservableObject {
     @Published var inputText: String = ""
     @Published var isLoading: Bool = false
     @Published var error: String?
-    private(set) var systemPrompt: String = ""
+    @Published private(set) var systemPrompt: String = ""
+    private(set) var agentType: AgentType = .general
 
     private let sendMessageUseCase: SendMessageUseCase
+    private let setCustomPromptAction: ((String) -> Void)?
     private var conversationId: UUID!
     private var cancellables = Set<AnyCancellable>()
 
@@ -25,21 +27,29 @@ final class ChatViewModel: ObservableObject {
     init(
         sendMessageUseCase: SendMessageUseCase,
         conversation: Conversation,
-        historyStore: MessageHistoryStore
+        historyStore: MessageHistoryStore,
+        setCustomPromptAction: ((String) -> Void)? = nil
     ) {
         self.sendMessageUseCase = sendMessageUseCase
         self.historyStore = historyStore
+        self.setCustomPromptAction = setCustomPromptAction
         setup(conversation)
 
         historyStore.objectWillChange
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)
     }
-    
+
     func setup(_ conversation: Conversation) {
         self.conversationId = conversation.id
+        self.agentType = conversation.agentType
         self.messages = conversation.messages.filter { $0.role != .system }
-        self.systemPrompt = conversation.agentType.systemPrompt
+        self.systemPrompt = conversation.messages.first(where: { $0.role == .system })?.content
+            ?? conversation.agentType.systemPrompt
+    }
+
+    func useAsCustomAgentPrompt(_ text: String) {
+        setCustomPromptAction?(text)
     }
 
     func sendMessage() {
