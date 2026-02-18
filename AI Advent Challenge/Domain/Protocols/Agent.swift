@@ -31,7 +31,7 @@ extension Agent {
             messages: conversation.messages,
             tools: agentType.availableTools,
             temperature: 0.7,
-            maxTokens: nil,
+            maxTokens: agentType.maxTokens,
             stop: agentType.stopWords
         )
 
@@ -63,7 +63,7 @@ extension Agent {
             messages: conversation.messages,
             tools: agentType.availableTools,
             temperature: 0.7,
-            maxTokens: nil,
+            maxTokens: agentType.maxTokens,
             stop: nil
         )
 

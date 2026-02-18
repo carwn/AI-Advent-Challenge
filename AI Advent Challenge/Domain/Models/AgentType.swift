@@ -11,17 +11,18 @@ enum AgentType: String, CaseIterable, Identifiable {
     case general = "Универсальный ассистент"
     case weather = "Агент погоды"
     case weatherJSON = "Агент погоды (JSON)"
-    case calculator = "Агент-калькулятор"
-    case research = "Агент-исследователь"
     case bulletList = "Агент-список"
-    case motherInLaw = "Агент-Трискаидекафоб"
+    case stop13 = "Агент-Трискаидекафоб"
+    case stepByStep = "Пошаговый решатель"
+    case promptCrafter = "Промпт-инженер"
+    case multiExpert = "Совет экспертов"
 
     var id: String { rawValue }
 
     var systemPrompt: String {
         switch self {
         case .general:
-            return "You are a helpful AI assistant with access to various tools. Use them when appropriate to help the user."
+            return "You are a helpful AI assistant."
         case .weather:
             return "You are a weather assistant. Use the weather tool to provide accurate weather information for any location the user asks about."
         case .weatherJSON:
@@ -35,22 +36,61 @@ enum AgentType: String, CaseIterable, Identifiable {
             - "summary": a brief human-readable description
             Never include any text outside of the JSON object.
             """
-        case .calculator:
-            return "You are a calculator assistant. Use the calculator tool to perform mathematical operations when the user requests calculations."
-        case .research:
-            return "You are a research assistant. Use search tools to find and summarize information on topics the user asks about."
         case .bulletList:
             return "You are a concise assistant. Always respond using a bullet list with a maximum of 5 items. Each item must be short and clear. Never use prose, paragraphs, or more than 5 bullets. If the answer requires more than 5 points, pick the most important ones."
-        case .motherInLaw:
+        case .stop13:
             return "You are a helpful assistant. Answer any question freely and in detail."
+        case .stepByStep:
+            return """
+            You are a methodical problem-solving assistant. For every user request:
+            1. Restate the problem briefly.
+            2. Break it down into clear, numbered steps.
+            3. Execute each step explicitly, showing your reasoning.
+            4. Provide a final summary with the answer.
+            Never skip steps. Never jump to conclusions without showing your work.
+            Keep each step concise — one or two sentences per step is enough.
+            """
+        case .promptCrafter:
+            return """
+            You are an expert prompt engineer. When the user describes a task or goal,
+            your job is NOT to solve it — instead, craft a precise, effective prompt
+            that another AI agent could use to solve it optimally.
+
+            Structure your output as:
+            - **Роль агента**: who the agent should be
+            - **Задача**: clear description of what to do
+            - **Формат ответа**: expected output format
+            - **Ограничения**: any constraints or rules
+
+            Output only the crafted prompt, no commentary.
+            Be concise — each section should be 1–3 sentences at most.
+            """
+        case .multiExpert:
+            return """
+            You are a multi-expert reasoning system. For every user request:
+
+            1. **Identify Experts**: Determine 3 distinct expert roles most relevant to the task. Name each role clearly.
+
+            2. **Expert Opinions**: For each expert, present their analysis in this format:
+               ### [Expert Role]
+               [Their perspective, reasoning, and recommendation]
+
+            3. **Synthesis**: After all three opinions, add a section:
+               ### Итоговый вывод
+               Synthesize the key insights from all three experts into a final, balanced conclusion.
+
+            Always complete all three expert opinions before synthesizing.
+            Keep each expert's opinion concise — 3–5 sentences maximum per expert.
+            """
         }
     }
 
     var stopWords: [String]? {
         switch self {
-        case .motherInLaw:
+        case .stop13:
             return ["13"]
-        default:
+        case .general, .weather, .weatherJSON, .bulletList,
+             .stepByStep, .promptCrafter, .multiExpert:
             return nil
         }
     }
@@ -58,18 +98,16 @@ enum AgentType: String, CaseIterable, Identifiable {
     var availableTools: [ToolDefinition] {
         switch self {
         case .general:
-            return [.weatherTool(), .calculatorTool(), .searchTool()]
+            return []
         case .weather:
             return [.weatherTool()]
         case .weatherJSON:
             return [.weatherTool()]
-        case .calculator:
-            return [.calculatorTool()]
-        case .research:
-            return [.searchTool()]
         case .bulletList:
             return []
-        case .motherInLaw:
+        case .stop13:
+            return []
+        case .stepByStep, .promptCrafter, .multiExpert:
             return []
         }
     }
@@ -82,33 +120,50 @@ enum AgentType: String, CaseIterable, Identifiable {
             return "cloud.sun"
         case .weatherJSON:
             return "cloud.sun.fill"
-        case .calculator:
-            return "function"
-        case .research:
-            return "magnifyingglass"
         case .bulletList:
             return "list.bullet"
-        case .motherInLaw:
+        case .stop13:
             return "hand.raised"
+        case .stepByStep:
+            return "list.number"
+        case .promptCrafter:
+            return "text.cursor"
+        case .multiExpert:
+            return "person.3"
         }
     }
 
     var description: String {
         switch self {
         case .general:
-            return "Универсальный ассистент с доступом к погоде, калькулятору и поиску"
+            return "Универсальный ассистент"
         case .weather:
             return "Специализируется на предоставлении информации о погоде в любом месте"
         case .weatherJSON:
             return "Возвращает информацию о погоде в виде структурированного JSON-объекта"
-        case .calculator:
-            return "Выполняет математические вычисления и операции"
-        case .research:
-            return "Ищет и резюмирует информацию из различных источников"
         case .bulletList:
             return "Отвечает на любой вопрос в виде списка до 5 ключевых пунктов"
-        case .motherInLaw:
+        case .stop13:
             return "Панически боится числа 13 и останавливает генерацию при его упоминании"
+        case .stepByStep:
+            return "Разбивает любую задачу на последовательные шаги и решает методично"
+        case .promptCrafter:
+            return "Составляет оптимальный промпт для другого AI-агента"
+        case .multiExpert:
+            return "Привлекает трёх экспертов, получает их мнения и синтезирует вывод"
+        }
+    }
+
+    var maxTokens: Int {
+        switch self {
+        case .general:      return 1000
+        case .weather:      return 500
+        case .weatherJSON:  return 500
+        case .bulletList:   return 300
+        case .stop13:       return 1000
+        case .stepByStep:   return 1000
+        case .promptCrafter: return 800
+        case .multiExpert:  return 2000
         }
     }
 }
