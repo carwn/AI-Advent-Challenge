@@ -14,6 +14,7 @@ final class ChatViewModel: ObservableObject {
     @Published var inputText: String = ""
     @Published var isLoading: Bool = false
     @Published var error: String?
+    private(set) var systemPrompt: String = ""
 
     private let sendMessageUseCase: SendMessageUseCase
     private var conversationId: UUID!
@@ -38,6 +39,7 @@ final class ChatViewModel: ObservableObject {
     func setup(_ conversation: Conversation) {
         self.conversationId = conversation.id
         self.messages = conversation.messages.filter { $0.role != .system }
+        self.systemPrompt = conversation.agentType.systemPrompt
     }
 
     func sendMessage() {
