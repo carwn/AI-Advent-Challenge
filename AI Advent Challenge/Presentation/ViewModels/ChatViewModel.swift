@@ -15,6 +15,8 @@ final class ChatViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var error: String?
     @Published private(set) var systemPrompt: String = ""
+    @Published private(set) var totalPromptTokens: Int = 0
+    @Published private(set) var totalCompletionTokens: Int = 0
     private(set) var agentType: AgentType = .general
 
     private let sendMessageUseCase: SendMessageUseCase
@@ -82,6 +84,10 @@ final class ChatViewModel: ObservableObject {
                 )
 
                 messages.append(response.message)
+                if let usage = response.usage {
+                    totalPromptTokens += usage.promptTokens
+                    totalCompletionTokens += usage.completionTokens
+                }
                 isLoading = false
             } catch {
                 self.error = error.localizedDescription
