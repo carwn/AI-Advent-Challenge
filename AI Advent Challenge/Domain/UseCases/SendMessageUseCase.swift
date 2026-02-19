@@ -34,7 +34,11 @@ final class SendMessageUseCase {
             conversation.addMessage(response.message)
         }
         repository.updateConversation(conversation)
-        
+
         return response
+    }
+
+    func clearConversation(conversationId: UUID) {
+        repository.clearConversation(id: conversationId)
     }
 }

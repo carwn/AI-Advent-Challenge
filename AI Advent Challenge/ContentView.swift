@@ -39,10 +39,22 @@ struct ContentView: View {
                     }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
+                    if let vm = chatViewModel {
+                        Button(role: .destructive) {
+                            vm.clearConversation()
+                        } label: {
+                            Image(systemName: "trash")
+                                .font(.caption)
+                        }
+                        .disabled(vm.isLoading)
+                    }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
                         showingSettings = true
                     } label: {
                         Image(systemName: "gear")
+                            .font(.caption)
                     }
                 }
             }

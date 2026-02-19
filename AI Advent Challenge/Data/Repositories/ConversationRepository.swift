@@ -67,6 +67,16 @@ final class ConversationRepository {
         }
     }
 
+    func clearConversation(id: UUID) {
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard var conversation = conversations[id] else { return }
+        conversation.messages = conversation.messages.filter { $0.role == .system }
+        conversation.updatedAt = Date()
+        conversations[id] = conversation
+    }
+
     func deleteConversation(id: UUID) {
         lock.lock()
         defer { lock.unlock() }

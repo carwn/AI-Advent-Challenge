@@ -61,6 +61,14 @@ final class ChatViewModel: ObservableObject {
         setCustomPromptAction?(text)
     }
 
+    func clearConversation() {
+        sendMessageUseCase.clearConversation(conversationId: conversationId)
+        messages = []
+        totalPromptTokens = 0
+        totalCompletionTokens = 0
+        error = nil
+    }
+
     func sendMessage() {
         guard !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return
