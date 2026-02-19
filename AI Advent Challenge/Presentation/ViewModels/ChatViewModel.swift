@@ -23,19 +23,26 @@ final class ChatViewModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
 
     let historyStore: MessageHistoryStore
+    let temperatureStore: TemperatureStore
 
     init(
         sendMessageUseCase: SendMessageUseCase,
         conversation: Conversation,
         historyStore: MessageHistoryStore,
+        temperatureStore: TemperatureStore,
         setCustomPromptAction: ((String) -> Void)? = nil
     ) {
         self.sendMessageUseCase = sendMessageUseCase
         self.historyStore = historyStore
+        self.temperatureStore = temperatureStore
         self.setCustomPromptAction = setCustomPromptAction
         setup(conversation)
 
         historyStore.objectWillChange
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+
+        temperatureStore.objectWillChange
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)
     }

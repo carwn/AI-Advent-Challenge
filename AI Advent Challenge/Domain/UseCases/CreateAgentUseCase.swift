@@ -10,10 +10,12 @@ import Foundation
 final class CreateAgentUseCase {
     private let providerFactory: ProviderFactory
     private let toolExecutor: ToolExecutor
+    private let temperatureStore: TemperatureStore
 
-    init(providerFactory: ProviderFactory, toolExecutor: ToolExecutor) {
+    init(providerFactory: ProviderFactory, toolExecutor: ToolExecutor, temperatureStore: TemperatureStore) {
         self.providerFactory = providerFactory
         self.toolExecutor = toolExecutor
+        self.temperatureStore = temperatureStore
     }
 
     func execute(agentType: AgentType) throws -> Agent {
@@ -21,7 +23,8 @@ final class CreateAgentUseCase {
         return DefaultAgent(
             agentType: agentType,
             provider: provider,
-            toolExecutor: toolExecutor
+            toolExecutor: toolExecutor,
+            temperatureStore: temperatureStore
         )
     }
 }

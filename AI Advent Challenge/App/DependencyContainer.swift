@@ -29,12 +29,14 @@ final class DependencyContainer: ObservableObject {
 
     // Presentation Layer
     lazy var messageHistoryStore = MessageHistoryStore()
+    lazy var temperatureStore = TemperatureStore()
 
     // Use Cases
     private func makeCreateAgentUseCase() -> CreateAgentUseCase {
         CreateAgentUseCase(
             providerFactory: providerFactory,
-            toolExecutor: toolExecutor
+            toolExecutor: toolExecutor,
+            temperatureStore: temperatureStore
         )
     }
 
@@ -62,6 +64,7 @@ final class DependencyContainer: ObservableObject {
             sendMessageUseCase: sendMessageUseCase,
             conversation: conversation,
             historyStore: messageHistoryStore,
+            temperatureStore: temperatureStore,
             setCustomPromptAction: setCustomPromptAction
         )
     }

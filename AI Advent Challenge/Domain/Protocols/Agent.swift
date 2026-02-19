@@ -11,6 +11,7 @@ protocol Agent {
     var agentType: AgentType { get }
     var provider: LLMProvider { get }
     var toolExecutor: ToolExecutor { get }
+    var temperature: Double { get }
 
     func sendMessage(
         conversation: Conversation
@@ -30,7 +31,7 @@ extension Agent {
         let response = try await provider.complete(
             messages: conversation.messages,
             tools: agentType.availableTools,
-            temperature: 0.7,
+            temperature: temperature,
             maxTokens: agentType.maxTokens,
             stop: agentType.stopWords
         )
@@ -62,7 +63,7 @@ extension Agent {
         let finalResponse = try await provider.complete(
             messages: conversation.messages,
             tools: agentType.availableTools,
-            temperature: 0.7,
+            temperature: temperature,
             maxTokens: agentType.maxTokens,
             stop: nil
         )
@@ -76,10 +77,14 @@ final class DefaultAgent: Agent {
     let agentType: AgentType
     let provider: LLMProvider
     let toolExecutor: ToolExecutor
+    private let temperatureStore: TemperatureStore
 
-    init(agentType: AgentType, provider: LLMProvider, toolExecutor: ToolExecutor) {
+    var temperature: Double { temperatureStore.temperature }
+
+    init(agentType: AgentType, provider: LLMProvider, toolExecutor: ToolExecutor, temperatureStore: TemperatureStore) {
         self.agentType = agentType
         self.provider = provider
         self.toolExecutor = toolExecutor
+        self.temperatureStore = temperatureStore
     }
 }
