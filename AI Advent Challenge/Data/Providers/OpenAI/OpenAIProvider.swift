@@ -13,7 +13,7 @@ final class OpenAIProvider: LLMProvider {
     private let apiKey: String
 
     init(
-        modelName: String = "gpt-4-turbo-preview",
+        modelName: String = "gpt-4.1-mini",
         networkClient: NetworkClient,
         apiKey: String
     ) {
