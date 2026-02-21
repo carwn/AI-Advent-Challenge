@@ -93,6 +93,7 @@ iOSInjectionProject/
 Config.xcconfig
 *.xcconfig
 !Config-Template.xcconfig
+AI Advent Challenge Tests/Secrets.txt
 
 # Keychain exports
 *.keychain

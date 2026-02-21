@@ -6,15 +6,32 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXContainerItemProxy section */
+		AA0007002F43794C00DEB8B8 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 6D75444D2F43794C00DEB8B8 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 6D7544542F43794C00DEB8B8;
+			remoteInfo = "AI Advent Challenge";
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
+		6D1CB4902F4A7A13003383F0 /* AI Advent Challenge.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = file; path = "AI Advent Challenge.xctestplan"; sourceTree = "<group>"; };
 		6D7544552F43794C00DEB8B8 /* AI Advent Challenge.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "AI Advent Challenge.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		6D7544632F43794D00DEB8B8 /* CLAUDE.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CLAUDE.md; sourceTree = SOURCE_ROOT; };
+		AA0001002F43794C00DEB8B8 /* AI Advent Challenge Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "AI Advent Challenge Tests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		6D7544572F43794C00DEB8B8 /* AI Advent Challenge */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = "AI Advent Challenge";
+			sourceTree = "<group>";
+		};
+		AA0002002F43794C00DEB8B8 /* AI Advent Challenge Tests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "AI Advent Challenge Tests";
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -27,13 +44,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		AA0004002F43794C00DEB8B8 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		6D75444C2F43794C00DEB8B8 = {
 			isa = PBXGroup;
 			children = (
+				6D1CB4902F4A7A13003383F0 /* AI Advent Challenge.xctestplan */,
 				6D7544572F43794C00DEB8B8 /* AI Advent Challenge */,
+				AA0002002F43794C00DEB8B8 /* AI Advent Challenge Tests */,
 				6D7544562F43794C00DEB8B8 /* Products */,
 				6D7544632F43794D00DEB8B8 /* CLAUDE.md */,
 			);
@@ -43,6 +69,7 @@
 			isa = PBXGroup;
 			children = (
 				6D7544552F43794C00DEB8B8 /* AI Advent Challenge.app */,
+				AA0001002F43794C00DEB8B8 /* AI Advent Challenge Tests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -72,6 +99,29 @@
 			productReference = 6D7544552F43794C00DEB8B8 /* AI Advent Challenge.app */;
 			productType = "com.apple.product-type.application";
 		};
+		AA0006002F43794C00DEB8B8 /* AI Advent Challenge Tests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA000B002F43794C00DEB8B8 /* Build configuration list for PBXNativeTarget "AI Advent Challenge Tests" */;
+			buildPhases = (
+				AA0003002F43794C00DEB8B8 /* Sources */,
+				AA0004002F43794C00DEB8B8 /* Frameworks */,
+				AA0005002F43794C00DEB8B8 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				AA0008002F43794C00DEB8B8 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				AA0002002F43794C00DEB8B8 /* AI Advent Challenge Tests */,
+			);
+			name = "AI Advent Challenge Tests";
+			packageProductDependencies = (
+			);
+			productName = "AI Advent Challenge Tests";
+			productReference = AA0001002F43794C00DEB8B8 /* AI Advent Challenge Tests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -84,6 +134,10 @@
 				TargetAttributes = {
 					6D7544542F43794C00DEB8B8 = {
 						CreatedOnToolsVersion = 26.2;
+					};
+					AA0006002F43794C00DEB8B8 = {
+						CreatedOnToolsVersion = 26.2;
+						TestTargetID = 6D7544542F43794C00DEB8B8;
 					};
 				};
 			};
@@ -102,12 +156,20 @@
 			projectRoot = "";
 			targets = (
 				6D7544542F43794C00DEB8B8 /* AI Advent Challenge */,
+				AA0006002F43794C00DEB8B8 /* AI Advent Challenge Tests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		6D7544532F43794C00DEB8B8 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AA0005002F43794C00DEB8B8 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -124,7 +186,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		AA0003002F43794C00DEB8B8 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		AA0008002F43794C00DEB8B8 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 6D7544542F43794C00DEB8B8 /* AI Advent Challenge */;
+			targetProxy = AA0007002F43794C00DEB8B8 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		6D75445E2F43794D00DEB8B8 /* Debug */ = {
@@ -312,6 +389,44 @@
 			};
 			name = Release;
 		};
+		AA0009002F43794C00DEB8B8 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3T976NF4W2;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "carwnSoft.AI-Advent-Challenge.Tests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AI Advent Challenge.app/AI Advent Challenge";
+			};
+			name = Debug;
+		};
+		AA000A002F43794C00DEB8B8 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3T976NF4W2;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "carwnSoft.AI-Advent-Challenge.Tests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AI Advent Challenge.app/AI Advent Challenge";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -329,6 +444,15 @@
 			buildConfigurations = (
 				6D7544612F43794D00DEB8B8 /* Debug */,
 				6D7544622F43794D00DEB8B8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AA000B002F43794C00DEB8B8 /* Build configuration list for PBXNativeTarget "AI Advent Challenge Tests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA0009002F43794C00DEB8B8 /* Debug */,
+				AA000A002F43794C00DEB8B8 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

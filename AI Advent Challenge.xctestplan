@@ -1,0 +1,30 @@
+{
+  "configurations" : [
+    {
+      "id" : "1CA4DFFE-F431-484C-B729-48A7F77BEEB7",
+      "name" : "Test Scheme Action",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "performanceAntipatternCheckerEnabled" : true,
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:AI Advent Challenge.xcodeproj",
+      "identifier" : "6D7544542F43794C00DEB8B8",
+      "name" : "AI Advent Challenge"
+    }
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : true,
+      "target" : {
+        "containerPath" : "container:AI Advent Challenge.xcodeproj",
+        "identifier" : "AA0006002F43794C00DEB8B8",
+        "name" : "AI Advent Challenge Tests"
+      }
+    }
+  ],
+  "version" : 1
+}
