@@ -9,10 +9,24 @@ import SwiftUI
 
 struct SettingsView: View {
     @StateObject var viewModel: SettingsViewModel
+    @ObservedObject var modelStore: ModelStore
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         Form {
+            Section {
+                Picker("Модель", selection: $modelStore.selectedProvider) {
+                    ForEach(ProviderType.allCases, id: \.self) { provider in
+                        Text(provider.displayName).tag(provider)
+                    }
+                }
+            } header: {
+                Text("LLM Провайдер")
+            } footer: {
+                Text("Все модели доступны через ProxyAPI.ru с единым API-ключом.")
+                    .font(.caption)
+            }
+
             Section {
                 SecureField("API-ключ", text: $viewModel.openAIKey)
                     .textContentType(.password)

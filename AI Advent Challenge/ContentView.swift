@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Combine
 
 struct ContentView: View {
     @EnvironmentObject var container: DependencyContainer
@@ -68,7 +69,10 @@ struct ContentView: View {
             }
             .sheet(isPresented: $showingSettings) {
                 NavigationStack {
-                    SettingsView(viewModel: container.makeSettingsViewModel())
+                    SettingsView(
+                        viewModel: container.makeSettingsViewModel(),
+                        modelStore: container.modelStore
+                    )
                 }
             }
             .alert("Требуется настройка", isPresented: $showingError) {
@@ -78,6 +82,11 @@ struct ContentView: View {
                 Button("Отмена", role: .cancel) { }
             } message: {
                 Text(errorMessage)
+            }
+            .onReceive(container.modelStore.objectWillChange) { _ in
+                chatViewModelCache = [:]
+                chatViewModel = nil
+                selectedConversation = nil
             }
         }
     }
@@ -151,9 +160,4 @@ private struct NavigationTitleView: View {
         .padding(.vertical, 5)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
     }
-}
-
-#Preview {
-    ContentView()
-        .environmentObject(DependencyContainer())
 }

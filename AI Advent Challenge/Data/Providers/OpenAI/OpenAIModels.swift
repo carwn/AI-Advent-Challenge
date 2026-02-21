@@ -13,15 +13,24 @@ struct OpenAIRequest: Encodable {
     let tools: [ToolDefinition]?
     let temperature: Double
     let maxTokens: Int?
+    let maxCompletionTokens: Int?
     let stop: [String]?
 
     enum CodingKeys: String, CodingKey {
-        case model
-        case messages
-        case tools
-        case temperature
+        case model, messages, tools, temperature, stop
         case maxTokens = "max_tokens"
-        case stop
+        case maxCompletionTokens = "max_completion_tokens"
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(model, forKey: .model)
+        try container.encode(messages, forKey: .messages)
+        try container.encodeIfPresent(tools, forKey: .tools)
+        try container.encode(temperature, forKey: .temperature)
+        try container.encodeIfPresent(maxTokens, forKey: .maxTokens)
+        try container.encodeIfPresent(maxCompletionTokens, forKey: .maxCompletionTokens)
+        try container.encodeIfPresent(stop, forKey: .stop)
     }
 }
 

@@ -30,13 +30,15 @@ final class DependencyContainer: ObservableObject {
     // Presentation Layer
     lazy var messageHistoryStore = MessageHistoryStore()
     lazy var temperatureStore = TemperatureStore()
+    lazy var modelStore = ModelStore()
 
     // Use Cases
     private func makeCreateAgentUseCase() -> CreateAgentUseCase {
         CreateAgentUseCase(
             providerFactory: providerFactory,
             toolExecutor: toolExecutor,
-            temperatureStore: temperatureStore
+            temperatureStore: temperatureStore,
+            modelStore: modelStore
         )
     }
 
