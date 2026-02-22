@@ -17,7 +17,27 @@ This is a standard Xcode project with no external package manager (no SPM packag
 - **Build/Run**: Open `AI Advent Challenge.xcodeproj` in Xcode and run on a simulator or device.
 - **API Key**: The app requires an OpenAI API key entered via the in-app Settings screen; it is stored in Keychain under service name `com.aiapp.openai`.
 
-There are no test targets, lint scripts, or CI configuration in this repo currently.
+## Running Tests
+
+The project has an integration test target **AI Advent Challenge Tests** (`ProviderIntegrationTests.swift`) that sends "Привет" to each provider and verifies a non-empty response.
+
+**Run via xcodebuild (preferred for Claude Code):**
+
+```bash
+xcodebuild test \
+  -project "AI Advent Challenge.xcodeproj" \
+  -scheme "AI Advent Challenge" \
+  -destination "platform=iOS Simulator,id=FE23BF87-929B-442B-A282-75EA7997265A" \
+  -testPlan "AI Advent Challenge"
+```
+
+Simulator ID `FE23BF87-929B-442B-A282-75EA7997265A` = **iPhone 17, iOS 26.2**. If it becomes unavailable, find a replacement with:
+
+```bash
+xcodebuild -project "AI Advent Challenge.xcodeproj" -scheme "AI Advent Challenge" -showdestinations 2>&1 | grep "iOS Simulator"
+```
+
+**API key**: Tests read the key from `AI Advent Challenge Tests/Secrets.txt` (gitignored). The file contains the raw key on a single line. As a fallback, the env var `TEST_API_KEY` is also checked. If neither is present, tests are skipped (`XCTSkip`), not failed.
 
 ## Architecture
 
