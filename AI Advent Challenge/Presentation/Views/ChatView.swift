@@ -12,6 +12,7 @@ struct ChatView: View {
     @FocusState private var isInputFocused: Bool
     @State private var highlightedChip: String?
     @State private var showingTemperatureSlider = false
+    @State private var chipsContainerWidth: CGFloat = 300
 
     var body: some View {
         VStack(spacing: 0) {
@@ -146,7 +147,7 @@ struct ChatView: View {
                                     Text(msg)
                                         .font(.caption)
                                         .lineLimit(1)
-                                        .frame(maxWidth: UIScreen.main.bounds.width * 0.55, alignment: .leading)
+                                        .frame(maxWidth: chipsContainerWidth * 0.55, alignment: .leading)
                                 }
                                 .buttonStyle(.plain)
 
@@ -172,6 +173,13 @@ struct ChatView: View {
                     }
                     .padding(.horizontal)
                     .padding(.vertical, 4)
+                }
+                .background {
+                    GeometryReader { geo in
+                        Color.clear
+                            .onAppear { chipsContainerWidth = geo.size.width }
+                            .onChange(of: geo.size.width) { _, w in chipsContainerWidth = w }
+                    }
                 }
             }
 

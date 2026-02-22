@@ -38,33 +38,33 @@ struct ContentView: View {
             .navigationTitle("AI Ассистент")
             .toolbar {
                 ToolbarItem(placement: .principal) {
-                    if let vm = chatViewModel {
-                        NavigationTitleView(
-                            agentType: selectedAgentType,
-                            chatViewModel: vm,
-                            modelStore: container.modelStore,
-                            onTap: { showingAgentSelection = true }
-                        )
-                    }
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    if let vm = chatViewModel {
-                        Button(role: .destructive) {
-                            vm.clearConversation()
+                    HStack(spacing: 12) {
+                        if let vm = chatViewModel {
+                            NavigationTitleView(
+                                agentType: selectedAgentType,
+                                chatViewModel: vm,
+                                modelStore: container.modelStore,
+                                onTap: { showingAgentSelection = true }
+                            )
+                        }
+                        Spacer(minLength: .zero)
+                        if let vm = chatViewModel {
+                            Button(role: .destructive) {
+                                vm.clearConversation()
+                            } label: {
+                                Image(systemName: "trash")
+                                    .font(.caption)
+                            }
+                            .disabled(vm.isLoading)
+                        }
+                        Button {
+                            showingSettings = true
                         } label: {
-                            Image(systemName: "trash")
+                            Image(systemName: "gear")
                                 .font(.caption)
                         }
-                        .disabled(vm.isLoading)
                     }
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        showingSettings = true
-                    } label: {
-                        Image(systemName: "gear")
-                            .font(.caption)
-                    }
+                    .frame(maxWidth: .infinity)
                 }
             }
             .sheet(isPresented: $showingAgentSelection) {
@@ -144,24 +144,29 @@ private struct NavigationTitleView: View {
             Text(modelStore.selectedProvider.displayName)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
-            (
-                Text("↑").foregroundStyle(.blue) +
-                Text("\(chatViewModel.totalPromptTokens) ").foregroundStyle(.secondary) +
-                Text("↓").foregroundStyle(.orange) +
-                Text("\(chatViewModel.totalCompletionTokens)").foregroundStyle(.secondary)
-            )
-            .font(.caption2.monospaced())
-            if totalCostRUB > 0 {
-                (
-                    Text("↑").foregroundStyle(.blue) +
-                    Text("₽\(fmt(inputCostRUB)) ").foregroundStyle(.secondary) +
-                    Text("↓").foregroundStyle(.orange) +
-                    Text("₽\(fmt(outputCostRUB)) ").foregroundStyle(.secondary) +
-                    Text("∑").foregroundStyle(.secondary) +
+                .fixedSize(horizontal: true, vertical: false)
+            HStack(spacing: 6) {
+                HStack(spacing: 0) {
+                    Text("↑").foregroundStyle(.blue)
+                    Text("\(chatViewModel.totalPromptTokens) ").foregroundStyle(.secondary)
+                    Text("↓").foregroundStyle(.orange)
+                    Text("\(chatViewModel.totalCompletionTokens)").foregroundStyle(.secondary)
+                }
+                .font(.caption2.monospaced())
+                Text("·")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                HStack(spacing: 0) {
+                    Text("↑").foregroundStyle(.blue)
+                    Text("₽\(fmt(inputCostRUB)) ").foregroundStyle(.secondary)
+                    Text("↓").foregroundStyle(.orange)
+                    Text("₽\(fmt(outputCostRUB)) ").foregroundStyle(.secondary)
+                    Text("∑").foregroundStyle(.secondary)
                     Text("₽\(fmt(totalCostRUB))").foregroundStyle(.green)
-                )
+                }
                 .font(.caption2.monospaced())
             }
+            .fixedSize(horizontal: true, vertical: false)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 5)

@@ -18,6 +18,7 @@ struct SettingsView: View {
                 ForEach(ProviderType.allCases, id: \.self) { provider in
                     Button {
                         modelStore.selectedProvider = provider
+                        dismiss()
                     } label: {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
@@ -34,6 +35,7 @@ struct SettingsView: View {
                                     .foregroundStyle(.blue)
                             }
                         }
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                 }
