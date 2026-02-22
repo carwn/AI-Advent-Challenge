@@ -18,6 +18,6 @@ final class ModelStore: ObservableObject {
 
     init() {
         let saved = UserDefaults.standard.string(forKey: "selectedProvider") ?? ""
-        self.selectedProvider = ProviderType(rawValue: saved) ?? .openAI
+        self.selectedProvider = ProviderType(rawValue: saved) ?? .gpt41Mini
     }
 }

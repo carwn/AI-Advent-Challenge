@@ -8,11 +8,12 @@
 import Foundation
 
 final class AnthropicProvider: LLMProvider {
-    let modelName: String = "claude-sonnet-4-6"
+    let modelName: String
     private let networkClient: NetworkClient
     private let apiKey: String
 
-    init(networkClient: NetworkClient, apiKey: String) {
+    init(modelName: String = "claude-sonnet-4-6", networkClient: NetworkClient, apiKey: String) {
+        self.modelName = modelName
         self.networkClient = networkClient
         self.apiKey = apiKey
     }

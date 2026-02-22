@@ -25,10 +25,10 @@ final class ProviderIntegrationTests: XCTestCase {
         XCTAssertEqual(response.message.role, .assistant)
     }
 
-    // MARK: - OpenAI GPT-5.2
+    // MARK: - OpenAI GPT-4.1 Nano
 
-    func testOpenAI_gpt52_respondsToHello() async throws {
-        let provider = try makeOpenAIProvider(model: "gpt-5.2")
+    func testOpenAI_gpt41Nano_respondsToHello() async throws {
+        let provider = try makeOpenAIProvider(model: "gpt-4.1-nano")
         let response = try await provider.complete(
             messages: [userMessage],
             tools: nil,
@@ -36,15 +36,14 @@ final class ProviderIntegrationTests: XCTestCase {
             maxTokens: 100,
             stop: nil
         )
-        XCTAssertFalse(response.message.content.isEmpty, "GPT-5.2: ответ не должен быть пустым")
+        XCTAssertFalse(response.message.content.isEmpty, "GPT-4.1 Nano: ответ не должен быть пустым")
         XCTAssertEqual(response.message.role, .assistant)
     }
 
-    // MARK: - Anthropic Claude
+    // MARK: - OpenAI GPT-4.1
 
-    func testAnthropic_respondsToHello() async throws {
-        let apiKey = try requireAPIKey()
-        let provider = AnthropicProvider(networkClient: NetworkClient(), apiKey: apiKey)
+    func testOpenAI_gpt41_respondsToHello() async throws {
+        let provider = try makeOpenAIProvider(model: "gpt-4.1")
         let response = try await provider.complete(
             messages: [userMessage],
             tools: nil,
@@ -52,15 +51,14 @@ final class ProviderIntegrationTests: XCTestCase {
             maxTokens: 100,
             stop: nil
         )
-        XCTAssertFalse(response.message.content.isEmpty, "Anthropic: ответ не должен быть пустым")
+        XCTAssertFalse(response.message.content.isEmpty, "GPT-4.1: ответ не должен быть пустым")
         XCTAssertEqual(response.message.role, .assistant)
     }
 
-    // MARK: - Gemini
+    // MARK: - Gemini 2.5 Flash Lite
 
-    func testGemini_respondsToHello() async throws {
-        let apiKey = try requireAPIKey()
-        let provider = GeminiProvider(networkClient: NetworkClient(), apiKey: apiKey)
+    func testGemini_flashLite_respondsToHello() async throws {
+        let provider = try makeGeminiProvider(model: "gemini-2.5-flash-lite")
         let response = try await provider.complete(
             messages: [userMessage],
             tools: nil,
@@ -68,7 +66,83 @@ final class ProviderIntegrationTests: XCTestCase {
             maxTokens: 100,
             stop: nil
         )
-        XCTAssertFalse(response.message.content.isEmpty, "Gemini: ответ не должен быть пустым")
+        XCTAssertFalse(response.message.content.isEmpty, "Gemini 2.5 Flash Lite: ответ не должен быть пустым")
+        XCTAssertEqual(response.message.role, .assistant)
+    }
+
+    // MARK: - Gemini 2.5 Flash
+
+    func testGemini_flash_respondsToHello() async throws {
+        let provider = try makeGeminiProvider(model: "gemini-2.5-flash")
+        let response = try await provider.complete(
+            messages: [userMessage],
+            tools: nil,
+            temperature: 0.7,
+            maxTokens: 100,
+            stop: nil
+        )
+        XCTAssertFalse(response.message.content.isEmpty, "Gemini 2.5 Flash: ответ не должен быть пустым")
+        XCTAssertEqual(response.message.role, .assistant)
+    }
+
+    // MARK: - Gemini 2.5 Pro
+
+    func testGemini_pro_respondsToHello() async throws {
+        // Thinking-модель: нужен больший бюджет токенов, чтобы мышление не съедало весь лимит
+        let provider = try makeGeminiProvider(model: "gemini-2.5-pro")
+        let response = try await provider.complete(
+            messages: [userMessage],
+            tools: nil,
+            temperature: 0.7,
+            maxTokens: 2000,
+            stop: nil
+        )
+        XCTAssertFalse(response.message.content.isEmpty, "Gemini 2.5 Pro: ответ не должен быть пустым")
+        XCTAssertEqual(response.message.role, .assistant)
+    }
+
+    // MARK: - Claude Haiku 4.5
+
+    func testAnthropic_haiku_respondsToHello() async throws {
+        let provider = try makeAnthropicProvider(model: "claude-haiku-4-5")
+        let response = try await provider.complete(
+            messages: [userMessage],
+            tools: nil,
+            temperature: 0.7,
+            maxTokens: 100,
+            stop: nil
+        )
+        XCTAssertFalse(response.message.content.isEmpty, "Claude Haiku 4.5: ответ не должен быть пустым")
+        XCTAssertEqual(response.message.role, .assistant)
+    }
+
+    // MARK: - Claude Sonnet 4.5
+
+    func testAnthropic_sonnet4_respondsToHello() async throws {
+        let provider = try makeAnthropicProvider(model: "claude-sonnet-4-5")
+        let response = try await provider.complete(
+            messages: [userMessage],
+            tools: nil,
+            temperature: 0.7,
+            maxTokens: 100,
+            stop: nil
+        )
+        XCTAssertFalse(response.message.content.isEmpty, "Claude Sonnet 4.5: ответ не должен быть пустым")
+        XCTAssertEqual(response.message.role, .assistant)
+    }
+
+    // MARK: - Claude Opus 4.5
+
+    func testAnthropic_opus45_respondsToHello() async throws {
+        let provider = try makeAnthropicProvider(model: "claude-opus-4-5")
+        let response = try await provider.complete(
+            messages: [userMessage],
+            tools: nil,
+            temperature: 0.7,
+            maxTokens: 100,
+            stop: nil
+        )
+        XCTAssertFalse(response.message.content.isEmpty, "Claude Opus 4.5: ответ не должен быть пустым")
         XCTAssertEqual(response.message.role, .assistant)
     }
 
@@ -93,5 +167,15 @@ final class ProviderIntegrationTests: XCTestCase {
     private func makeOpenAIProvider(model: String) throws -> OpenAIProvider {
         let apiKey = try requireAPIKey()
         return OpenAIProvider(modelName: model, networkClient: NetworkClient(), apiKey: apiKey)
+    }
+
+    private func makeGeminiProvider(model: String) throws -> GeminiProvider {
+        let apiKey = try requireAPIKey()
+        return GeminiProvider(modelName: model, networkClient: NetworkClient(), apiKey: apiKey)
+    }
+
+    private func makeAnthropicProvider(model: String) throws -> AnthropicProvider {
+        let apiKey = try requireAPIKey()
+        return AnthropicProvider(modelName: model, networkClient: NetworkClient(), apiKey: apiKey)
     }
 }

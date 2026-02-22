@@ -123,8 +123,8 @@ struct GeminiResponse: Decodable {
     }
 
     struct Content: Decodable {
-        let parts: [Part]
-        let role: String
+        let parts: [Part]?
+        let role: String?
     }
 
     struct Part: Decodable {
@@ -153,9 +153,9 @@ struct GeminiResponse: Decodable {
             )
         }
 
-        let textContent = content.parts.compactMap { $0.text }.joined()
+        let textContent = (content.parts ?? []).compactMap { $0.text }.joined()
 
-        let functionCalls = content.parts.compactMap { $0.functionCall }
+        let functionCalls = (content.parts ?? []).compactMap { $0.functionCall }
         var toolCalls: [ToolCall]? = nil
         if !functionCalls.isEmpty {
             toolCalls = functionCalls.map { fc in
