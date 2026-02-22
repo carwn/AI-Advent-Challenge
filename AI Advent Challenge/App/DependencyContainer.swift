@@ -74,19 +74,14 @@ final class DependencyContainer: ObservableObject {
             : nil
 
         let conversationId = conversation.id
-        let onTokensUpdated: (Int, Int) -> Void = { [weak self] prompt, completion in
-            self?.conversationRepository.updateTokenUsage(
-                id: conversationId,
-                promptTokens: prompt,
-                completionTokens: completion
-            )
-        }
-        let onResponseTimeUpdated: (UUID, TimeInterval, String?) -> Void = { [weak self] messageId, responseTime, modelName in
+        let onResponseTimeUpdated: (UUID, TimeInterval, String?, Int?, Int?) -> Void = { [weak self] messageId, responseTime, modelName, promptTokens, completionTokens in
             self?.conversationRepository.updateMessageResponseTime(
                 conversationId: conversationId,
                 messageId: messageId,
                 responseTime: responseTime,
-                modelName: modelName
+                modelName: modelName,
+                promptTokens: promptTokens,
+                completionTokens: completionTokens
             )
         }
 
@@ -96,9 +91,8 @@ final class DependencyContainer: ObservableObject {
             historyStore: messageHistoryStore,
             temperatureStore: temperatureStore,
             setCustomPromptAction: setCustomPromptAction,
-            onTokensUpdated: onTokensUpdated,
             onResponseTimeUpdated: onResponseTimeUpdated,
-            currentModelName: { [weak self] in self?.modelStore.selectedProvider.displayName }
+            currentModelName: { [weak self] in self?.modelStore.selectedProvider.rawValue }
         )
     }
 

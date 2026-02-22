@@ -110,16 +110,22 @@ private struct NavigationTitleView: View {
     @ObservedObject var modelStore: ModelStore
     let onTap: () -> Void
 
-    private var pricing: (input: Double, output: Double) {
-        modelStore.selectedProvider.pricingRUB
-    }
-
     private var inputCostRUB: Double {
-        Double(chatViewModel.totalPromptTokens) * pricing.input / 1_000_000
+        chatViewModel.messages.reduce(0.0) { sum, msg in
+            guard let rawName = msg.modelName,
+                  let provider = ProviderType(rawValue: rawName),
+                  let tokens = msg.promptTokens else { return sum }
+            return sum + Double(tokens) * provider.pricingRUB.input / 1_000_000
+        }
     }
 
     private var outputCostRUB: Double {
-        Double(chatViewModel.totalCompletionTokens) * pricing.output / 1_000_000
+        chatViewModel.messages.reduce(0.0) { sum, msg in
+            guard let rawName = msg.modelName,
+                  let provider = ProviderType(rawValue: rawName),
+                  let tokens = msg.completionTokens else { return sum }
+            return sum + Double(tokens) * provider.pricingRUB.output / 1_000_000
+        }
     }
 
     private var totalCostRUB: Double { inputCostRUB + outputCostRUB }

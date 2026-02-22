@@ -67,7 +67,14 @@ final class ConversationRepository {
         }
     }
 
-    func updateMessageResponseTime(conversationId: UUID, messageId: UUID, responseTime: TimeInterval, modelName: String?) {
+    func updateMessageResponseTime(
+        conversationId: UUID,
+        messageId: UUID,
+        responseTime: TimeInterval,
+        modelName: String?,
+        promptTokens: Int?,
+        completionTokens: Int?
+    ) {
         lock.lock()
         defer { lock.unlock() }
 
@@ -77,20 +84,11 @@ final class ConversationRepository {
             conversation.messages[idx] = Message(
                 id: old.id, role: old.role, content: old.content,
                 timestamp: old.timestamp, toolCalls: old.toolCalls,
-                toolCallId: old.toolCallId, responseTime: responseTime, modelName: modelName
+                toolCallId: old.toolCallId, responseTime: responseTime, modelName: modelName,
+                promptTokens: promptTokens, completionTokens: completionTokens
             )
             conversations[conversationId] = conversation
         }
-    }
-
-    func updateTokenUsage(id: UUID, promptTokens: Int, completionTokens: Int) {
-        lock.lock()
-        defer { lock.unlock() }
-
-        guard var conversation = conversations[id] else { return }
-        conversation.totalPromptTokens = promptTokens
-        conversation.totalCompletionTokens = completionTokens
-        conversations[id] = conversation
     }
 
     func clearConversation(id: UUID) {
@@ -99,8 +97,6 @@ final class ConversationRepository {
 
         guard var conversation = conversations[id] else { return }
         conversation.messages = conversation.messages.filter { $0.role == .system }
-        conversation.totalPromptTokens = 0
-        conversation.totalCompletionTokens = 0
         conversation.updatedAt = Date()
         conversations[id] = conversation
     }

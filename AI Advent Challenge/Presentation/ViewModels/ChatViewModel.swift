@@ -15,14 +15,14 @@ final class ChatViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var error: String?
     @Published private(set) var systemPrompt: String = ""
-    @Published private(set) var totalPromptTokens: Int = 0
-    @Published private(set) var totalCompletionTokens: Int = 0
     private(set) var agentType: AgentType = .general
+
+    var totalPromptTokens: Int { messages.reduce(0) { $0 + ($1.promptTokens ?? 0) } }
+    var totalCompletionTokens: Int { messages.reduce(0) { $0 + ($1.completionTokens ?? 0) } }
 
     private let sendMessageUseCase: SendMessageUseCase
     private let setCustomPromptAction: ((String) -> Void)?
-    private let onTokensUpdated: ((Int, Int) -> Void)?
-    private let onResponseTimeUpdated: ((UUID, TimeInterval, String?) -> Void)?
+    private let onResponseTimeUpdated: ((UUID, TimeInterval, String?, Int?, Int?) -> Void)?
     private let currentModelName: () -> String?
     private var conversationId: UUID!
     private var cancellables = Set<AnyCancellable>()
@@ -36,15 +36,13 @@ final class ChatViewModel: ObservableObject {
         historyStore: MessageHistoryStore,
         temperatureStore: TemperatureStore,
         setCustomPromptAction: ((String) -> Void)? = nil,
-        onTokensUpdated: ((Int, Int) -> Void)? = nil,
-        onResponseTimeUpdated: ((UUID, TimeInterval, String?) -> Void)? = nil,
+        onResponseTimeUpdated: ((UUID, TimeInterval, String?, Int?, Int?) -> Void)? = nil,
         currentModelName: @escaping () -> String? = { nil }
     ) {
         self.sendMessageUseCase = sendMessageUseCase
         self.historyStore = historyStore
         self.temperatureStore = temperatureStore
         self.setCustomPromptAction = setCustomPromptAction
-        self.onTokensUpdated = onTokensUpdated
         self.onResponseTimeUpdated = onResponseTimeUpdated
         self.currentModelName = currentModelName
         setup(conversation)
@@ -64,8 +62,6 @@ final class ChatViewModel: ObservableObject {
         self.messages = conversation.messages.filter { $0.role != .system }
         self.systemPrompt = conversation.messages.first(where: { $0.role == .system })?.content
             ?? conversation.agentType.systemPrompt
-        self.totalPromptTokens = conversation.totalPromptTokens
-        self.totalCompletionTokens = conversation.totalCompletionTokens
     }
 
     func useAsCustomAgentPrompt(_ text: String) {
@@ -75,9 +71,6 @@ final class ChatViewModel: ObservableObject {
     func clearConversation() {
         sendMessageUseCase.clearConversation(conversationId: conversationId)
         messages = []
-        totalPromptTokens = 0
-        totalCompletionTokens = 0
-        onTokensUpdated?(0, 0)
         error = nil
     }
 
@@ -115,15 +108,12 @@ final class ChatViewModel: ObservableObject {
                     toolCalls: msg.toolCalls,
                     toolCallId: msg.toolCallId,
                     responseTime: elapsed,
-                    modelName: modelName
+                    modelName: modelName,
+                    promptTokens: response.usage?.promptTokens,
+                    completionTokens: response.usage?.completionTokens
                 )
                 messages.append(timedMessage)
-                onResponseTimeUpdated?(msg.id, elapsed, modelName)
-                if let usage = response.usage {
-                    totalPromptTokens += usage.promptTokens
-                    totalCompletionTokens += usage.completionTokens
-                    onTokensUpdated?(totalPromptTokens, totalCompletionTokens)
-                }
+                onResponseTimeUpdated?(msg.id, elapsed, modelName, response.usage?.promptTokens, response.usage?.completionTokens)
                 isLoading = false
             } catch {
                 self.error = error.localizedDescription

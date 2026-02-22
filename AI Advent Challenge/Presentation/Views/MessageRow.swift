@@ -46,17 +46,70 @@ struct MessageRow: View {
                         Text("· \(formattedResponseTime(responseTime))")
                     }
                     if let modelName = message.modelName {
-                        Text("· \(modelName)")
+                        let display = ProviderType(rawValue: modelName)?.displayName ?? modelName
+                        Text("· \(display)")
                     }
                 }
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+
+                if message.role == .assistant, message.promptTokens != nil || message.completionTokens != nil {
+                    tokenCostRow
+                }
             }
 
             if message.role == .assistant {
                 Spacer()
             }
         }
+    }
+
+    private var provider: ProviderType? {
+        guard let rawName = message.modelName else { return nil }
+        return ProviderType(rawValue: rawName)
+    }
+
+    private var inputCostRUB: Double? {
+        guard let tokens = message.promptTokens, let p = provider else { return nil }
+        return Double(tokens) * p.pricingRUB.input / 1_000_000
+    }
+
+    private var outputCostRUB: Double? {
+        guard let tokens = message.completionTokens, let p = provider else { return nil }
+        return Double(tokens) * p.pricingRUB.output / 1_000_000
+    }
+
+    private func fmtCost(_ v: Double) -> String {
+        v < 0.01 ? String(format: "%.4f", v) : String(format: "%.2f", v)
+    }
+
+    private var tokenCostRow: some View {
+        HStack(spacing: 6) {
+            HStack(spacing: 0) {
+                Text("↑").foregroundStyle(.blue)
+                Text("\(message.promptTokens ?? 0) ")
+                Text("↓").foregroundStyle(.orange)
+                Text("\(message.completionTokens ?? 0)")
+            }
+            if inputCostRUB != nil || outputCostRUB != nil {
+                Text("·").foregroundStyle(.tertiary)
+                HStack(spacing: 0) {
+                    if let c = inputCostRUB {
+                        Text("↑").foregroundStyle(.blue)
+                        Text("₽\(fmtCost(c)) ")
+                    }
+                    if let c = outputCostRUB {
+                        Text("↓").foregroundStyle(.orange)
+                        Text("₽\(fmtCost(c)) ")
+                    }
+                    let total = (inputCostRUB ?? 0) + (outputCostRUB ?? 0)
+                    Text("∑").foregroundStyle(.secondary)
+                    Text("₽\(fmtCost(total))").foregroundStyle(.green)
+                }
+            }
+        }
+        .font(.caption2.monospaced())
+        .foregroundStyle(.secondary)
     }
 
     private func formattedResponseTime(_ seconds: TimeInterval) -> String {

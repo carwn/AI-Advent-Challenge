@@ -16,6 +16,8 @@ struct Message: Identifiable, Equatable {
     let toolCallId: String?
     let responseTime: TimeInterval?
     let modelName: String?
+    let promptTokens: Int?
+    let completionTokens: Int?
 
     init(
         id: UUID = UUID(),
@@ -25,7 +27,9 @@ struct Message: Identifiable, Equatable {
         toolCalls: [ToolCall]? = nil,
         toolCallId: String? = nil,
         responseTime: TimeInterval? = nil,
-        modelName: String? = nil
+        modelName: String? = nil,
+        promptTokens: Int? = nil,
+        completionTokens: Int? = nil
     ) {
         self.id = id
         self.role = role
@@ -35,6 +39,8 @@ struct Message: Identifiable, Equatable {
         self.toolCallId = toolCallId
         self.responseTime = responseTime
         self.modelName = modelName
+        self.promptTokens = promptTokens
+        self.completionTokens = completionTokens
     }
 }
 
