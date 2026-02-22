@@ -67,6 +67,22 @@ final class ConversationRepository {
         }
     }
 
+    func updateMessageResponseTime(conversationId: UUID, messageId: UUID, responseTime: TimeInterval, modelName: String?) {
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard var conversation = conversations[conversationId] else { return }
+        if let idx = conversation.messages.firstIndex(where: { $0.id == messageId }) {
+            let old = conversation.messages[idx]
+            conversation.messages[idx] = Message(
+                id: old.id, role: old.role, content: old.content,
+                timestamp: old.timestamp, toolCalls: old.toolCalls,
+                toolCallId: old.toolCallId, responseTime: responseTime, modelName: modelName
+            )
+            conversations[conversationId] = conversation
+        }
+    }
+
     func updateTokenUsage(id: UUID, promptTokens: Int, completionTokens: Int) {
         lock.lock()
         defer { lock.unlock() }

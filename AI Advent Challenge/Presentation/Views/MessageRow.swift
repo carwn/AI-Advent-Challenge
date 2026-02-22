@@ -45,6 +45,9 @@ struct MessageRow: View {
                     if let responseTime = message.responseTime {
                         Text("· \(formattedResponseTime(responseTime))")
                     }
+                    if let modelName = message.modelName {
+                        Text("· \(modelName)")
+                    }
                 }
                 .font(.caption2)
                 .foregroundStyle(.secondary)

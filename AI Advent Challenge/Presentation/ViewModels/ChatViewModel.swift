@@ -22,6 +22,8 @@ final class ChatViewModel: ObservableObject {
     private let sendMessageUseCase: SendMessageUseCase
     private let setCustomPromptAction: ((String) -> Void)?
     private let onTokensUpdated: ((Int, Int) -> Void)?
+    private let onResponseTimeUpdated: ((UUID, TimeInterval, String?) -> Void)?
+    private let currentModelName: () -> String?
     private var conversationId: UUID!
     private var cancellables = Set<AnyCancellable>()
 
@@ -34,13 +36,17 @@ final class ChatViewModel: ObservableObject {
         historyStore: MessageHistoryStore,
         temperatureStore: TemperatureStore,
         setCustomPromptAction: ((String) -> Void)? = nil,
-        onTokensUpdated: ((Int, Int) -> Void)? = nil
+        onTokensUpdated: ((Int, Int) -> Void)? = nil,
+        onResponseTimeUpdated: ((UUID, TimeInterval, String?) -> Void)? = nil,
+        currentModelName: @escaping () -> String? = { nil }
     ) {
         self.sendMessageUseCase = sendMessageUseCase
         self.historyStore = historyStore
         self.temperatureStore = temperatureStore
         self.setCustomPromptAction = setCustomPromptAction
         self.onTokensUpdated = onTokensUpdated
+        self.onResponseTimeUpdated = onResponseTimeUpdated
+        self.currentModelName = currentModelName
         setup(conversation)
 
         historyStore.objectWillChange
@@ -100,6 +106,7 @@ final class ChatViewModel: ObservableObject {
                 let elapsed = Date().timeIntervalSince(startTime)
 
                 let msg = response.message
+                let modelName = currentModelName()
                 let timedMessage = Message(
                     id: msg.id,
                     role: msg.role,
@@ -107,9 +114,11 @@ final class ChatViewModel: ObservableObject {
                     timestamp: msg.timestamp,
                     toolCalls: msg.toolCalls,
                     toolCallId: msg.toolCallId,
-                    responseTime: elapsed
+                    responseTime: elapsed,
+                    modelName: modelName
                 )
                 messages.append(timedMessage)
+                onResponseTimeUpdated?(msg.id, elapsed, modelName)
                 if let usage = response.usage {
                     totalPromptTokens += usage.promptTokens
                     totalCompletionTokens += usage.completionTokens

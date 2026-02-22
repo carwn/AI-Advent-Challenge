@@ -81,6 +81,14 @@ final class DependencyContainer: ObservableObject {
                 completionTokens: completion
             )
         }
+        let onResponseTimeUpdated: (UUID, TimeInterval, String?) -> Void = { [weak self] messageId, responseTime, modelName in
+            self?.conversationRepository.updateMessageResponseTime(
+                conversationId: conversationId,
+                messageId: messageId,
+                responseTime: responseTime,
+                modelName: modelName
+            )
+        }
 
         return ChatViewModel(
             sendMessageUseCase: sendMessageUseCase,
@@ -88,7 +96,9 @@ final class DependencyContainer: ObservableObject {
             historyStore: messageHistoryStore,
             temperatureStore: temperatureStore,
             setCustomPromptAction: setCustomPromptAction,
-            onTokensUpdated: onTokensUpdated
+            onTokensUpdated: onTokensUpdated,
+            onResponseTimeUpdated: onResponseTimeUpdated,
+            currentModelName: { [weak self] in self?.modelStore.selectedProvider.displayName }
         )
     }
 
