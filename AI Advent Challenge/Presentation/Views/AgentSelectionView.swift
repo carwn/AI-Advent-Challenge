@@ -9,15 +9,14 @@ import SwiftUI
 
 struct AgentSelectionView: View {
     @StateObject var viewModel: AgentSelectionViewModel
-    let onAgentSelected: (Conversation) -> Void
+    let onAgentSelected: (AgentType) -> Void
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
             List(viewModel.availableAgents) { agent in
                 Button {
-                    let conversation = viewModel.createConversation(with: agent)
-                    onAgentSelected(conversation)
+                    onAgentSelected(agent)
                 } label: {
                     HStack(spacing: 16) {
                         Image(systemName: agent.icon)

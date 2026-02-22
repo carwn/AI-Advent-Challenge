@@ -6,17 +6,19 @@
 //
 
 import SwiftUI
-import Combine
 
 struct ContentView: View {
     @EnvironmentObject var container: DependencyContainer
     @State private var showingAgentSelection = false
     @State private var showingSettings = false
-    @State private var selectedConversation: Conversation?
     @State private var chatViewModel: ChatViewModel?
-    @State private var chatViewModelCache: [AgentType: ChatViewModel] = [:]
     @State private var showingError = false
     @State private var errorMessage = ""
+    @AppStorage("selectedAgentTypeRaw") private var selectedAgentTypeRaw: String = AgentType.general.rawValue
+
+    private var selectedAgentType: AgentType {
+        AgentType(rawValue: selectedAgentTypeRaw) ?? .general
+    }
 
     var body: some View {
         NavigationStack {
@@ -24,14 +26,19 @@ struct ContentView: View {
                 if let viewModel = chatViewModel {
                     ChatView(viewModel: viewModel)
                 } else {
-                    welcomeView
+                    ProgressView()
                 }
+            }
+            .task {
+                if chatViewModel == nil { activateAgent(selectedAgentType) }
+            }
+            .onChange(of: container.modelStore.selectedProvider) { _, _ in
+                activateAgent(selectedAgentType)
             }
             .navigationTitle("AI Ассистент")
             .toolbar {
                 ToolbarItem(placement: .principal) {
-                    if let selectedAgentType = selectedConversation?.agentType,
-                       let vm = chatViewModel {
+                    if let vm = chatViewModel {
                         NavigationTitleView(
                             agentType: selectedAgentType,
                             chatViewModel: vm,
@@ -63,9 +70,7 @@ struct ContentView: View {
             .sheet(isPresented: $showingAgentSelection) {
                 AgentSelectionView(
                     viewModel: container.makeAgentSelectionViewModel(),
-                    onAgentSelected: { conversation in
-                        handleAgentSelection(conversation)
-                    }
+                    onAgentSelected: { agentType in activateAgent(agentType) }
                 )
             }
             .sheet(isPresented: $showingSettings) {
@@ -84,49 +89,17 @@ struct ContentView: View {
             } message: {
                 Text(errorMessage)
             }
-            .onReceive(container.modelStore.objectWillChange) { _ in
-                chatViewModelCache = [:]
-                chatViewModel = nil
-                selectedConversation = nil
-            }
         }
     }
 
-    private var welcomeView: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "brain")
-                .font(.system(size: 80))
-                .foregroundStyle(.tint)
-
-            Text("AI Ассистент")
-                .font(.title)
-                .fontWeight(.bold)
-
-            Text("Выберите агента для начала")
-                .foregroundStyle(.secondary)
-
-            Button("Выбрать агента") {
-                showingAgentSelection = true
-            }
-            .buttonStyle(.borderedProminent)
-        }
-        .padding()
-    }
-
-    private func handleAgentSelection(_ conversation: Conversation) {
-        selectedConversation = conversation
+    private func activateAgent(_ agentType: AgentType) {
+        selectedAgentTypeRaw = agentType.rawValue
         showingAgentSelection = false
-        if let cached = chatViewModelCache[conversation.agentType] {
-            chatViewModel = cached
-        } else {
-            do {
-                let viewModel = try container.makeChatViewModel(conversation: conversation)
-                chatViewModelCache[conversation.agentType] = viewModel
-                chatViewModel = viewModel
-            } catch {
-                errorMessage = error.localizedDescription
-                showingError = true
-            }
+        do {
+            chatViewModel = try container.makeChatViewModel(agentType: agentType)
+        } catch {
+            errorMessage = error.localizedDescription
+            showingError = true
         }
     }
 }

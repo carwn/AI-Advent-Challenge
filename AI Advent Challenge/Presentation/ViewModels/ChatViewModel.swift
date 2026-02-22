@@ -21,6 +21,7 @@ final class ChatViewModel: ObservableObject {
 
     private let sendMessageUseCase: SendMessageUseCase
     private let setCustomPromptAction: ((String) -> Void)?
+    private let onTokensUpdated: ((Int, Int) -> Void)?
     private var conversationId: UUID!
     private var cancellables = Set<AnyCancellable>()
 
@@ -32,12 +33,14 @@ final class ChatViewModel: ObservableObject {
         conversation: Conversation,
         historyStore: MessageHistoryStore,
         temperatureStore: TemperatureStore,
-        setCustomPromptAction: ((String) -> Void)? = nil
+        setCustomPromptAction: ((String) -> Void)? = nil,
+        onTokensUpdated: ((Int, Int) -> Void)? = nil
     ) {
         self.sendMessageUseCase = sendMessageUseCase
         self.historyStore = historyStore
         self.temperatureStore = temperatureStore
         self.setCustomPromptAction = setCustomPromptAction
+        self.onTokensUpdated = onTokensUpdated
         setup(conversation)
 
         historyStore.objectWillChange
@@ -55,6 +58,8 @@ final class ChatViewModel: ObservableObject {
         self.messages = conversation.messages.filter { $0.role != .system }
         self.systemPrompt = conversation.messages.first(where: { $0.role == .system })?.content
             ?? conversation.agentType.systemPrompt
+        self.totalPromptTokens = conversation.totalPromptTokens
+        self.totalCompletionTokens = conversation.totalCompletionTokens
     }
 
     func useAsCustomAgentPrompt(_ text: String) {
@@ -66,6 +71,7 @@ final class ChatViewModel: ObservableObject {
         messages = []
         totalPromptTokens = 0
         totalCompletionTokens = 0
+        onTokensUpdated?(0, 0)
         error = nil
     }
 
@@ -95,6 +101,7 @@ final class ChatViewModel: ObservableObject {
                 if let usage = response.usage {
                     totalPromptTokens += usage.promptTokens
                     totalCompletionTokens += usage.completionTokens
+                    onTokensUpdated?(totalPromptTokens, totalCompletionTokens)
                 }
                 isLoading = false
             } catch {
