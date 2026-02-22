@@ -168,6 +168,9 @@ private struct NavigationTitleView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            Text(modelStore.selectedProvider.displayName)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
             (
                 Text("↑").foregroundStyle(.blue) +
                 Text("\(chatViewModel.totalPromptTokens) ").foregroundStyle(.secondary) +
