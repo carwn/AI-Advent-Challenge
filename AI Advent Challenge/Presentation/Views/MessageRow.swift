@@ -40,14 +40,27 @@ struct MessageRow: View {
                     .cornerRadius(8)
                 }
 
-                Text(message.timestamp, style: .time)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 4) {
+                    Text(message.timestamp, style: .time)
+                    if let responseTime = message.responseTime {
+                        Text("· \(formattedResponseTime(responseTime))")
+                    }
+                }
+                .font(.caption2)
+                .foregroundStyle(.secondary)
             }
 
             if message.role == .assistant {
                 Spacer()
             }
+        }
+    }
+
+    private func formattedResponseTime(_ seconds: TimeInterval) -> String {
+        if seconds < 10 {
+            return String(format: "%.1f с", seconds)
+        } else {
+            return String(format: "%.0f с", seconds)
         }
     }
 

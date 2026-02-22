@@ -92,12 +92,24 @@ final class ChatViewModel: ObservableObject {
 
         Task {
             do {
+                let startTime = Date()
                 let response = try await sendMessageUseCase.execute(
                     message: messageText,
                     conversationId: conversationId
                 )
+                let elapsed = Date().timeIntervalSince(startTime)
 
-                messages.append(response.message)
+                let msg = response.message
+                let timedMessage = Message(
+                    id: msg.id,
+                    role: msg.role,
+                    content: msg.content,
+                    timestamp: msg.timestamp,
+                    toolCalls: msg.toolCalls,
+                    toolCallId: msg.toolCallId,
+                    responseTime: elapsed
+                )
+                messages.append(timedMessage)
                 if let usage = response.usage {
                     totalPromptTokens += usage.promptTokens
                     totalCompletionTokens += usage.completionTokens

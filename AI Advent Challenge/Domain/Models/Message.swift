@@ -14,6 +14,7 @@ struct Message: Identifiable, Equatable {
     let timestamp: Date
     let toolCalls: [ToolCall]?
     let toolCallId: String?
+    let responseTime: TimeInterval?
 
     init(
         id: UUID = UUID(),
@@ -21,7 +22,8 @@ struct Message: Identifiable, Equatable {
         content: String,
         timestamp: Date = Date(),
         toolCalls: [ToolCall]? = nil,
-        toolCallId: String? = nil
+        toolCallId: String? = nil,
+        responseTime: TimeInterval? = nil
     ) {
         self.id = id
         self.role = role
@@ -29,6 +31,7 @@ struct Message: Identifiable, Equatable {
         self.timestamp = timestamp
         self.toolCalls = toolCalls
         self.toolCallId = toolCallId
+        self.responseTime = responseTime
     }
 }
 
