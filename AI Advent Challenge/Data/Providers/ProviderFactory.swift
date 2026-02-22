@@ -31,6 +31,21 @@ enum ProviderType: String, CaseIterable {
         case .claudeOpus45: return "Claude Opus 4.5"
         }
     }
+
+    /// Цены в рублях за 1 млн токенов (proxyapi.ru, с НДС 5%)
+    var pricingRUB: (input: Double, output: Double) {
+        switch self {
+        case .gpt41Nano:       return (26,   104)
+        case .gpt41Mini:       return (104,  413)
+        case .gpt41:           return (516,  2062)
+        case .claudeHaiku:     return (295,  1474)
+        case .claudeSonnet4:   return (774,  3866)
+        case .claudeOpus45:    return (1516, 7579)
+        case .geminiFlashLite: return (26,   129)
+        case .geminiFlash:     return (78,   645)
+        case .geminiPro:       return (323,  2577)
+        }
+    }
 }
 
 final class ProviderFactory {

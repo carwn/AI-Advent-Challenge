@@ -15,10 +15,27 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section {
-                Picker("Модель", selection: $modelStore.selectedProvider) {
-                    ForEach(ProviderType.allCases, id: \.self) { provider in
-                        Text(provider.displayName).tag(provider)
+                ForEach(ProviderType.allCases, id: \.self) { provider in
+                    Button {
+                        modelStore.selectedProvider = provider
+                    } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(provider.displayName)
+                                    .foregroundStyle(.primary)
+                                let p = provider.pricingRUB
+                                Text("↑\(Int(p.input))₽  ↓\(Int(p.output))₽  / 1М токенов")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            if modelStore.selectedProvider == provider {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(.blue)
+                            }
+                        }
                     }
+                    .buttonStyle(.plain)
                 }
             } header: {
                 Text("LLM Провайдер")
