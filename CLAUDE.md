@@ -47,7 +47,7 @@ The project follows **Clean Architecture** with these layers (all under `AI Adve
 Domain/          — Pure Swift, no framework dependencies
   Models/        — Message, Conversation, AgentResponse, ToolDefinition
   Protocols/     — Agent, LLMProvider, ToolExecutor
-  Agents/        — AgentSending (static helper) + 8 concrete agent classes
+  Agents/        — SendingMessage (protocol), SendMessageUseCase + 8 concrete agent classes
 
 Data/
   Providers/
@@ -81,7 +81,7 @@ protocol Agent: AnyObject {
     var icon: String { get }        // SF Symbol name
     var description: String { get }
     var conversation: Conversation { get set }
-    func send(_ text: String) async throws -> AgentResponse
+    func send(_ text: String) async throws
     func clearConversation()
 }
 ```
@@ -103,17 +103,28 @@ Each agent lives in `Domain/Agents/` as a `final class`. All configuration (syst
 | `PromptCrafterAgent` | 0.7 | 800 | — | — |
 | `MultiExpertAgent` | 0.5 | 2000 | — | — |
 
-Each agent's `send(_:)` delegates to `AgentSending.send(...)` and stores the returned `Conversation` back to `self.conversation`.
+Each agent's `send(_:)` delegates to `sendMessage.execute(...)` and stores the returned `Conversation` back to `self.conversation`.
 
-## AgentSending
+## SendMessageUseCase
 
-`Domain/Agents/AgentSending.swift` — static helper that handles the full request cycle:
+`Domain/Agents/AgentSending.swift` — use case, инкапсулирующий полный цикл запроса к LLM.
 
-1. Adds the user message to a local copy of `conversation`
-2. Calls `provider.complete(...)` with `max(maxTokens, provider.minMaxTokens)`
-3. If the response requires tool execution: adds the assistant tool-call message, executes each tool via `ToolExecutor`, adds tool result messages, calls `provider.complete(...)` again
-4. Builds the final `Message` with `responseTime`, `modelName`, and token counts from `usage`
-5. Returns `(AgentResponse, updated Conversation)` — uses value return instead of `inout` to avoid concurrency issues
+**Протокол** `SendingMessage` (в том же файле):
+```swift
+protocol SendingMessage {
+    func execute(userText:conversation:tools:temperature:maxTokens:stopWords:) async throws -> Conversation
+}
+```
+
+**Класс** `SendMessageUseCase: SendingMessage` принимает `LLMProvider` и `ToolExecutor` в `init`; `execute(...)` получает только варьируемые данные запроса:
+
+1. Добавляет user-сообщение в локальную копию `conversation`
+2. Вызывает `provider.complete(...)` с `max(maxTokens, provider.minMaxTokens)`
+3. Если ответ требует выполнения инструментов: добавляет tool-call сообщение, выполняет каждый инструмент через `ToolExecutor`, добавляет tool-result сообщения, повторно вызывает `provider.complete(...)`
+4. Строит финальный `Message` с `responseTime`, `modelName` и счётчиками токенов из `usage`
+5. Возвращает обновлённый `Conversation`
+
+`DependencyContainer` создаёт один `SendMessageUseCase` на все агенты текущей модели. Агенты хранят `any SendingMessage` — протокол позволяет подменять реализацию (например, мок в тестах).
 
 ## LLM Providers & Models
 
@@ -138,9 +149,9 @@ Selected model is persisted to `UserDefaults` (`selectedProvider`) via `ModelSto
 **Dependency Injection**: `DependencyContainer` (injected via `.environmentObject`) wires all layers together using `lazy var` properties. `makeAgents()` creates all 8 agent instances for the currently selected provider and caches them in `_agents`. When `modelStore.selectedProvider` changes, `_agents` is set to `nil` so the next call to `makeAgents()` creates fresh agents with the new provider. `ModelStore` is a non-lazy property; `MessageHistoryStore` is lazy.
 
 **Agent / Tool Flow**:
-1. `DependencyContainer.makeAgents()` creates all agents sharing one `LLMProvider` instance.
+1. `DependencyContainer.makeAgents()` создаёт один `SendMessageUseCase` и передаёт его всем агентам.
 2. `ChatViewModel` holds a reference to `any Agent`. Calling `sendMessage()` calls `agent.send(text)`.
-3. Inside `send()`, the agent delegates to `AgentSending.send(...)`, which handles the full LLM call (including tool execution if needed) and returns the updated `Conversation`.
+3. Inside `send()`, the agent delegates to `sendMessage.execute(...)`, which handles the full LLM call (including tool execution if needed) and returns the updated `Conversation`.
 4. After `send()` returns, `ChatViewModel` reads `agent.conversation.messages` to refresh the UI.
 
 **Temperature**: Fixed per agent class — not user-configurable. There is no `TemperatureStore`.
@@ -155,9 +166,9 @@ Selected model is persisted to `UserDefaults` (`selectedProvider`) via `ModelSto
 - `ModelStore` — observable selected `ProviderType`, persisted to `UserDefaults`.
 - `MessageHistoryStore` — last 10 sent messages, persisted to `UserDefaults` (key `"messageHistory"`). `ChatView` shows history chips above the input field — tapping a chip fills the input, the ✕ button deletes the entry.
 
-**Token Tracking & Costs**: Token counts and `responseTime` are set directly in `AgentSending` on the final `Message`. `ChatViewModel` computes totals by summing `promptTokens` / `completionTokens` / `thoughtsTokens` across all messages. Real-time RUB cost is calculated from `ProviderType` pricing and displayed in `ContentView`.
+**Token Tracking & Costs**: Token counts and `responseTime` are set directly in `SendMessageUseCase` on the final `Message`. `ChatViewModel` computes totals by summing `promptTokens` / `completionTokens` / `thoughtsTokens` across all messages. Real-time RUB cost is calculated from `ProviderType` pricing and displayed in `ContentView`.
 
-**Response Time**: `Message.responseTime: TimeInterval?` is set in `AgentSending` as `Date().timeIntervalSince(startTime)` covering the entire round-trip (including tool calls). Displayed in `MessageRow` as "X.X с".
+**Response Time**: `Message.responseTime: TimeInterval?` is set in `SendMessageUseCase` as `Date().timeIntervalSince(startTime)` covering the entire round-trip (including tool calls). Displayed in `MessageRow` as "X.X с".
 
 **Selected agent persistence**: `ContentView` uses `@AppStorage("selectedAgentName")` to persist the active agent's `name` string across launches. On startup it calls `makeAgents()` and finds the matching agent by name.
 
@@ -167,7 +178,7 @@ Selected model is persisted to `UserDefaults` (`selectedProvider`) via `ModelSto
 
 1. Create `Domain/Agents/MyAgent.swift` as a `final class` conforming to `Agent`.
 2. Set `name`, `icon`, `description`, `systemPrompt`, `temperature`, `maxTokens`, `stopWords`, `availableTools` as private properties.
-3. Implement `send(_:)` by delegating to `AgentSending.send(...)` and updating `conversation`.
+3. Implement `send(_:)` by delegating to `sendMessage.execute(...)` and updating `conversation`.
 4. Implement `clearConversation()` by replacing `conversation` with `Conversation(systemPrompt: systemPrompt)`.
 5. Add an instance to the array in `DependencyContainer.makeAgents()`.
 6. If the agent needs a new tool: implement it in `DefaultToolExecutor`, add its `ToolDefinition` factory in `ToolDefinition.swift`, and register it in `canExecute(toolName:)`.

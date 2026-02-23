@@ -45,16 +45,16 @@ final class DependencyContainer: ObservableObject {
     func makeAgents() throws -> [any Agent] {
         if let cached = _agents { return cached }
         let provider = try providerFactory.createProvider(modelStore.selectedProvider)
-        let executor = toolExecutor
+        let useCase = SendMessageUseCase(provider: provider, toolExecutor: toolExecutor)
         let agents: [any Agent] = [
-            GeneralAgent(provider: provider, toolExecutor: executor),
-            WeatherAgent(provider: provider, toolExecutor: executor),
-            WeatherJSONAgent(provider: provider, toolExecutor: executor),
-            BulletListAgent(provider: provider, toolExecutor: executor),
-            Stop13Agent(provider: provider, toolExecutor: executor),
-            StepByStepAgent(provider: provider, toolExecutor: executor),
-            PromptCrafterAgent(provider: provider, toolExecutor: executor),
-            MultiExpertAgent(provider: provider, toolExecutor: executor),
+            GeneralAgent(sendMessage: useCase),
+            WeatherAgent(sendMessage: useCase),
+            WeatherJSONAgent(sendMessage: useCase),
+            BulletListAgent(sendMessage: useCase),
+            Stop13Agent(sendMessage: useCase),
+            StepByStepAgent(sendMessage: useCase),
+            PromptCrafterAgent(sendMessage: useCase),
+            MultiExpertAgent(sendMessage: useCase),
         ]
         _agents = agents
         return agents

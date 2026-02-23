@@ -13,33 +13,27 @@ final class BulletListAgent: Agent {
     let description = "Отвечает на любой вопрос в виде списка до 5 ключевых пунктов"
     var conversation: Conversation
 
-    private let provider: LLMProvider
-    private let toolExecutor: ToolExecutor
+    private let sendMessage: any SendingMessage
     private let systemPrompt = "You are a concise assistant. Always respond using a bullet list with a maximum of 5 items. Each item must be short and clear. Never use prose, paragraphs, or more than 5 bullets. If the answer requires more than 5 points, pick the most important ones."
     private let availableTools: [ToolDefinition] = []
     private let maxTokens = 300
     private let stopWords: [String]? = nil
     private let temperature: Double = 0.7
 
-    init(provider: LLMProvider, toolExecutor: ToolExecutor) {
-        self.provider = provider
-        self.toolExecutor = toolExecutor
+    init(sendMessage: any SendingMessage) {
+        self.sendMessage = sendMessage
         self.conversation = Conversation(systemPrompt: systemPrompt)
     }
 
-    func send(_ text: String) async throws -> AgentResponse {
-        let (response, updated) = try await AgentSending.send(
+    func send(_ text: String) async throws {
+        conversation = try await sendMessage.execute(
             userText: text,
             conversation: conversation,
-            provider: provider,
             tools: availableTools,
             temperature: temperature,
             maxTokens: maxTokens,
-            stopWords: stopWords,
-            toolExecutor: toolExecutor
+            stopWords: stopWords
         )
-        conversation = updated
-        return response
     }
 
     func clearConversation() {

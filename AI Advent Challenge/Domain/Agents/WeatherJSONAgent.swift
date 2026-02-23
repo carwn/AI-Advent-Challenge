@@ -13,8 +13,7 @@ final class WeatherJSONAgent: Agent {
     let description = "Возвращает информацию о погоде в виде структурированного JSON-объекта"
     var conversation: Conversation
 
-    private let provider: LLMProvider
-    private let toolExecutor: ToolExecutor
+    private let sendMessage: any SendingMessage
     private let systemPrompt = """
         You are a weather assistant that always responds in JSON format. Use the weather tool to get weather data, then return your entire response as a valid JSON object.
         The JSON must include the following fields:
@@ -30,25 +29,20 @@ final class WeatherJSONAgent: Agent {
     private let stopWords: [String]? = nil
     private let temperature: Double = 0.7
 
-    init(provider: LLMProvider, toolExecutor: ToolExecutor) {
-        self.provider = provider
-        self.toolExecutor = toolExecutor
+    init(sendMessage: any SendingMessage) {
+        self.sendMessage = sendMessage
         self.conversation = Conversation(systemPrompt: systemPrompt)
     }
 
-    func send(_ text: String) async throws -> AgentResponse {
-        let (response, updated) = try await AgentSending.send(
+    func send(_ text: String) async throws {
+        conversation = try await sendMessage.execute(
             userText: text,
             conversation: conversation,
-            provider: provider,
             tools: availableTools,
             temperature: temperature,
             maxTokens: maxTokens,
-            stopWords: stopWords,
-            toolExecutor: toolExecutor
+            stopWords: stopWords
         )
-        conversation = updated
-        return response
     }
 
     func clearConversation() {

@@ -1,5 +1,5 @@
 //
-//  AgentSending.swift
+//  SendMessageUseCase.swift
 //  AI Advent Challenge
 //
 //  Created by Claude on 23.02.2026.
@@ -7,17 +7,34 @@
 
 import Foundation
 
-enum AgentSending {
-    static func send(
+protocol SendingMessage {
+    func execute(
         userText: String,
         conversation: Conversation,
-        provider: LLMProvider,
         tools: [ToolDefinition],
         temperature: Double,
         maxTokens: Int,
-        stopWords: [String]?,
-        toolExecutor: ToolExecutor
-    ) async throws -> (AgentResponse, Conversation) {
+        stopWords: [String]?
+    ) async throws -> Conversation
+}
+
+final class SendMessageUseCase: SendingMessage {
+    private let provider: LLMProvider
+    private let toolExecutor: ToolExecutor
+
+    init(provider: LLMProvider, toolExecutor: ToolExecutor) {
+        self.provider = provider
+        self.toolExecutor = toolExecutor
+    }
+
+    func execute(
+        userText: String,
+        conversation: Conversation,
+        tools: [ToolDefinition],
+        temperature: Double,
+        maxTokens: Int,
+        stopWords: [String]?
+    ) async throws -> Conversation {
         var conv = conversation
         conv.addMessage(Message(role: .user, content: userText))
 
@@ -66,6 +83,6 @@ enum AgentSending {
         )
         conv.addMessage(timedMessage)
 
-        return (finalResponse, conv)
+        return conv
     }
 }

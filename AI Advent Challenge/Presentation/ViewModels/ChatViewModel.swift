@@ -44,7 +44,7 @@ final class ChatViewModel: ObservableObject {
 
         Task {
             do {
-                _ = try await agent.send(text)
+                try await agent.send(text)
                 messages = agent.conversation.messages.filter { $0.role != .system }
             } catch {
                 messages.removeLast()

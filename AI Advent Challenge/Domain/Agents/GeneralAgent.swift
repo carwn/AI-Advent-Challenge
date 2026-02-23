@@ -13,33 +13,27 @@ final class GeneralAgent: Agent {
     let description = "Универсальный помощник для любых задач"
     var conversation: Conversation
 
-    private let provider: LLMProvider
-    private let toolExecutor: ToolExecutor
+    private let sendMessage: any SendingMessage
     private let systemPrompt = "You are a helpful AI assistant."
     private let availableTools: [ToolDefinition] = []
     private let maxTokens = 1000
     private let stopWords: [String]? = nil
     private let temperature: Double = 0.7
 
-    init(provider: LLMProvider, toolExecutor: ToolExecutor) {
-        self.provider = provider
-        self.toolExecutor = toolExecutor
+    init(sendMessage: any SendingMessage) {
+        self.sendMessage = sendMessage
         self.conversation = Conversation(systemPrompt: systemPrompt)
     }
 
-    func send(_ text: String) async throws -> AgentResponse {
-        let (response, updated) = try await AgentSending.send(
+    func send(_ text: String) async throws {
+        conversation = try await sendMessage.execute(
             userText: text,
             conversation: conversation,
-            provider: provider,
             tools: availableTools,
             temperature: temperature,
             maxTokens: maxTokens,
-            stopWords: stopWords,
-            toolExecutor: toolExecutor
+            stopWords: stopWords
         )
-        conversation = updated
-        return response
     }
 
     func clearConversation() {

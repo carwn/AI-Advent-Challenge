@@ -7,16 +7,10 @@
 
 import Foundation
 
-struct Conversation: Identifiable {
-    let id: UUID
+struct Conversation {
     var messages: [Message]
-    let createdAt: Date
-    var updatedAt: Date
 
     init(systemPrompt: String) {
-        self.id = UUID()
-        self.createdAt = Date()
-        self.updatedAt = Date()
         if systemPrompt.isEmpty {
             self.messages = []
         } else {
@@ -26,6 +20,5 @@ struct Conversation: Identifiable {
 
     mutating func addMessage(_ message: Message) {
         messages.append(message)
-        updatedAt = Date()
     }
 }

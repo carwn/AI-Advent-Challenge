@@ -12,6 +12,6 @@ protocol Agent: AnyObject {
     var icon: String { get }
     var description: String { get }
     var conversation: Conversation { get set }
-    func send(_ text: String) async throws -> AgentResponse
+    func send(_ text: String) async throws
     func clearConversation()
 }
