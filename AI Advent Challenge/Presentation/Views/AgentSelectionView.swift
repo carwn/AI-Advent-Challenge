@@ -9,38 +9,41 @@ import SwiftUI
 
 struct AgentSelectionView: View {
     @StateObject var viewModel: AgentSelectionViewModel
-    let onAgentSelected: (AgentType) -> Void
+    let onAgentSelected: (any Agent) -> Void
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
-            List(viewModel.availableAgents) { agent in
-                Button {
-                    onAgentSelected(agent)
-                } label: {
-                    HStack(spacing: 16) {
-                        Image(systemName: agent.icon)
-                            .font(.system(size: 32))
-                            .foregroundStyle(.blue)
-                            .frame(width: 50)
+            List {
+                ForEach(viewModel.availableAgents.indices, id: \.self) { idx in
+                    let agent = viewModel.availableAgents[idx]
+                    Button {
+                        onAgentSelected(agent)
+                    } label: {
+                        HStack(spacing: 16) {
+                            Image(systemName: agent.icon)
+                                .font(.system(size: 32))
+                                .foregroundStyle(.blue)
+                                .frame(width: 50)
 
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(agent.rawValue)
-                                .font(.headline)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(agent.name)
+                                    .font(.headline)
 
-                            Text(agent.description)
-                                .font(.caption)
+                                Text(agent.description)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                            }
+
+                            Spacer()
+
+                            Image(systemName: "chevron.right")
                                 .foregroundStyle(.secondary)
-                                .lineLimit(2)
                         }
-
-                        Spacer()
-
-                        Image(systemName: "chevron.right")
-                            .foregroundStyle(.secondary)
                     }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
             .navigationTitle("Выбор агента")
             .navigationBarTitleDisplayMode(.inline)

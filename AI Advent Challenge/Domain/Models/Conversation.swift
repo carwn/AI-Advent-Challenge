@@ -10,22 +10,18 @@ import Foundation
 struct Conversation: Identifiable {
     let id: UUID
     var messages: [Message]
-    let agentType: AgentType
     let createdAt: Date
     var updatedAt: Date
 
-    init(
-        id: UUID = UUID(),
-        messages: [Message] = [],
-        agentType: AgentType,
-        createdAt: Date = Date(),
-        updatedAt: Date = Date()
-    ) {
-        self.id = id
-        self.messages = messages
-        self.agentType = agentType
-        self.createdAt = createdAt
-        self.updatedAt = updatedAt
+    init(systemPrompt: String) {
+        self.id = UUID()
+        self.createdAt = Date()
+        self.updatedAt = Date()
+        if systemPrompt.isEmpty {
+            self.messages = []
+        } else {
+            self.messages = [Message(role: .system, content: systemPrompt)]
+        }
     }
 
     mutating func addMessage(_ message: Message) {

@@ -22,87 +22,50 @@ final class DependencyContainer: ObservableObject {
         networkClient: networkClient,
         apiKeyManager: apiKeyManager
     )
-    private lazy var conversationRepository = ConversationRepository()
 
     // Domain Layer
     private lazy var toolExecutor: ToolExecutor = DefaultToolExecutor()
 
     // Presentation Layer
     lazy var messageHistoryStore = MessageHistoryStore()
-    lazy var temperatureStore = TemperatureStore()
     let modelStore = ModelStore()
 
+    private var _agents: [any Agent]?
     private var cancellables = Set<AnyCancellable>()
 
     init() {
-        // modelStore — вложенный ObservableObject; SwiftUI не подписывается
-        // на него автоматически через @EnvironmentObject. Форвардим его изменения,
-        // чтобы ContentView получал обновления и срабатывал .onChange(of: modelStore.selectedProvider).
         modelStore.objectWillChange
-            .sink { [weak self] in self?.objectWillChange.send() }
+            .sink { [weak self] in
+                self?.objectWillChange.send()
+                self?._agents = nil
+            }
             .store(in: &cancellables)
     }
 
-    // Use Cases
-    private func makeCreateAgentUseCase() -> CreateAgentUseCase {
-        CreateAgentUseCase(
-            providerFactory: providerFactory,
-            toolExecutor: toolExecutor,
-            temperatureStore: temperatureStore,
-            modelStore: modelStore
-        )
+    func makeAgents() throws -> [any Agent] {
+        if let cached = _agents { return cached }
+        let provider = try providerFactory.createProvider(modelStore.selectedProvider)
+        let executor = toolExecutor
+        let agents: [any Agent] = [
+            GeneralAgent(provider: provider, toolExecutor: executor),
+            WeatherAgent(provider: provider, toolExecutor: executor),
+            WeatherJSONAgent(provider: provider, toolExecutor: executor),
+            BulletListAgent(provider: provider, toolExecutor: executor),
+            Stop13Agent(provider: provider, toolExecutor: executor),
+            StepByStepAgent(provider: provider, toolExecutor: executor),
+            PromptCrafterAgent(provider: provider, toolExecutor: executor),
+            MultiExpertAgent(provider: provider, toolExecutor: executor),
+        ]
+        _agents = agents
+        return agents
     }
 
-    private func makeSendMessageUseCase(agent: Agent) -> SendMessageUseCase {
-        SendMessageUseCase(
-            agent: agent,
-            repository: conversationRepository
-        )
-    }
-
-    func setCustomAgentPrompt(_ prompt: String) {
-        conversationRepository.setSystemPromptForAgent(.customPrompt, prompt: prompt)
-    }
-
-    // ViewModels
-    func makeChatViewModel(conversation: Conversation) throws -> ChatViewModel {
-        let agent = try makeCreateAgentUseCase().execute(agentType: conversation.agentType)
-        let sendMessageUseCase = makeSendMessageUseCase(agent: agent)
-
-        let setCustomPromptAction: ((String) -> Void)? = conversation.agentType == .promptCrafter
-            ? { [weak self] prompt in self?.setCustomAgentPrompt(prompt) }
-            : nil
-
-        let conversationId = conversation.id
-        let onResponseTimeUpdated: (UUID, TimeInterval, String?, Int?, Int?) -> Void = { [weak self] messageId, responseTime, modelName, promptTokens, completionTokens in
-            self?.conversationRepository.updateMessageResponseTime(
-                conversationId: conversationId,
-                messageId: messageId,
-                responseTime: responseTime,
-                modelName: modelName,
-                promptTokens: promptTokens,
-                completionTokens: completionTokens
-            )
-        }
-
-        return ChatViewModel(
-            sendMessageUseCase: sendMessageUseCase,
-            conversation: conversation,
-            historyStore: messageHistoryStore,
-            temperatureStore: temperatureStore,
-            setCustomPromptAction: setCustomPromptAction,
-            onResponseTimeUpdated: onResponseTimeUpdated,
-            currentModelName: { [weak self] in self?.modelStore.selectedProvider.rawValue }
-        )
-    }
-
-    func makeChatViewModel(agentType: AgentType) throws -> ChatViewModel {
-        let conversation = conversationRepository.getOrCreateConversation(agentType: agentType)
-        return try makeChatViewModel(conversation: conversation)
+    func makeChatViewModel(agent: any Agent) -> ChatViewModel {
+        ChatViewModel(agent: agent, historyStore: messageHistoryStore)
     }
 
     func makeAgentSelectionViewModel() -> AgentSelectionViewModel {
-        AgentSelectionViewModel()
+        AgentSelectionViewModel(agents: (try? makeAgents()) ?? [])
     }
 
     func makeSettingsViewModel() -> SettingsViewModel {

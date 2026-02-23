@@ -17,7 +17,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		6D1CB4902F4A7A13003383F0 /* AI Advent Challenge.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = file; path = "AI Advent Challenge.xctestplan"; sourceTree = "<group>"; };
+		6D1CB4902F4A7A13003383F0 /* AI Advent Challenge.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = "AI Advent Challenge.xctestplan"; sourceTree = "<group>"; };
 		6D7544552F43794C00DEB8B8 /* AI Advent Challenge.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "AI Advent Challenge.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		6D7544632F43794D00DEB8B8 /* CLAUDE.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CLAUDE.md; sourceTree = SOURCE_ROOT; };
 		AA0001002F43794C00DEB8B8 /* AI Advent Challenge Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "AI Advent Challenge Tests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };

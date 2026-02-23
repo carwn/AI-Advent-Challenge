@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**AI Advent Challenge** is an iOS SwiftUI app that lets users chat with AI agents powered by multiple LLM providers (OpenAI, Anthropic, Google Gemini) via ProxyAPI.ru. Users can select from different specialized agent types, switch between 9 models, adjust temperature, and agents can call tools (weather, calculator, search) as part of their responses.
+**AI Advent Challenge** is an iOS SwiftUI app that lets users chat with AI agents powered by multiple LLM providers (OpenAI, Anthropic, Google Gemini) via ProxyAPI.ru. Users can select from 8 specialized agents, switch between 9 models, and agents can call tools (weather, calculator, search) as part of their responses.
 
 ## Git
 
@@ -45,9 +45,9 @@ The project follows **Clean Architecture** with these layers (all under `AI Adve
 
 ```
 Domain/          — Pure Swift, no framework dependencies
-  Models/        — Message, Conversation, AgentType, AgentResponse, ToolDefinition
-  Protocols/     — Agent (+ DefaultAgent), LLMProvider, ToolExecutor
-  UseCases/      — CreateAgentUseCase, SendMessageUseCase
+  Models/        — Message, Conversation, AgentResponse, ToolDefinition
+  Protocols/     — Agent, LLMProvider, ToolExecutor
+  Agents/        — AgentSending (static helper) + 8 concrete agent classes
 
 Data/
   Providers/
@@ -55,7 +55,6 @@ Data/
     Anthropic/   — AnthropicProvider, AnthropicModels
     Gemini/      — GeminiProvider, GeminiModels
     ProviderFactory.swift  — ProviderType enum (9 models) + pricing in RUB
-  Repositories/  — ConversationRepository (in-memory, thread-safe via NSLock)
 
 Infrastructure/
   Network/       — NetworkClient (URLSession-based), APIEndpoint, HTTPMethod,
@@ -66,29 +65,55 @@ Infrastructure/
 Presentation/
   Views/         — ContentView, ChatView, AgentSelectionView, SettingsView, MessageRow
   ViewModels/    — ChatViewModel, AgentSelectionViewModel, SettingsViewModel,
-                   MessageHistoryStore, TemperatureStore, ModelStore (@MainActor)
+                   MessageHistoryStore, ModelStore (@MainActor)
 
 App/
   DependencyContainer.swift  — Manual DI root, @MainActor ObservableObject
 ```
 
-## Agent Types
+## Agent Protocol
 
-Defined in `AgentType.swift` (enum with `CaseIterable`). Each case provides `systemPrompt`, `icon` (SF Symbol), `description`, `availableTools`, `maxTokens`, and optionally `stopWords`.
+Defined in `Domain/Protocols/Agent.swift`. Requires `AnyObject` (class-only) so that `conversation` can be mutated through an existential `any Agent`.
 
-| Case | Max Tokens | Tools | Description |
-|------|-----------|-------|-------------|
-| `general` | 1000 | — | Universal assistant |
-| `weather` | 500 | get_weather | Weather specialist, plain text output |
-| `weatherJSON` | 500 | get_weather | Weather specialist, always returns JSON |
-| `bulletList` | 300 | — | Responds only with bullet lists (max 5 items) |
-| `stop13` | 1000 | — | Stops generation when `"13"` appears (stop sequence demo) |
-| `stepByStep` | 1000 | — | Breaks tasks into numbered steps |
-| `promptCrafter` | 800 | — | Crafts effective prompts for other AI agents |
-| `multiExpert` | 2000 | — | Consults 3 expert roles and synthesizes conclusions |
-| `customPrompt` | 1000 | — | User-defined system prompt (populated via promptCrafter) |
+```swift
+protocol Agent: AnyObject {
+    var name: String { get }
+    var icon: String { get }        // SF Symbol name
+    var description: String { get }
+    var conversation: Conversation { get set }
+    func send(_ text: String) async throws -> AgentResponse
+    func clearConversation()
+}
+```
 
-**Note**: `maxTokens` is now defined per agent type (not a global 1000 cap).
+No default implementations — each agent class is self-contained.
+
+## Concrete Agents
+
+Each agent lives in `Domain/Agents/` as a `final class`. All configuration (system prompt, temperature, maxTokens, stopWords, tools) is private to the class.
+
+| Class | temperature | maxTokens | stopWords | tools |
+|---|---|---|---|---|
+| `GeneralAgent` | 0.7 | 1000 | — | — |
+| `WeatherAgent` | 0.7 | 500 | — | get_weather |
+| `WeatherJSONAgent` | 0.7 | 500 | — | get_weather |
+| `BulletListAgent` | 0.7 | 300 | — | — |
+| `Stop13Agent` | 0.7 | 1000 | `["13"]` | — |
+| `StepByStepAgent` | 0.7 | 1000 | — | — |
+| `PromptCrafterAgent` | 0.7 | 800 | — | — |
+| `MultiExpertAgent` | 0.5 | 2000 | — | — |
+
+Each agent's `send(_:)` delegates to `AgentSending.send(...)` and stores the returned `Conversation` back to `self.conversation`.
+
+## AgentSending
+
+`Domain/Agents/AgentSending.swift` — static helper that handles the full request cycle:
+
+1. Adds the user message to a local copy of `conversation`
+2. Calls `provider.complete(...)` with `max(maxTokens, provider.minMaxTokens)`
+3. If the response requires tool execution: adds the assistant tool-call message, executes each tool via `ToolExecutor`, adds tool result messages, calls `provider.complete(...)` again
+4. Builds the final `Message` with `responseTime`, `modelName`, and token counts from `usage`
+5. Returns `(AgentResponse, updated Conversation)` — uses value return instead of `inout` to avoid concurrency issues
 
 ## LLM Providers & Models
 
@@ -110,36 +135,46 @@ Selected model is persisted to `UserDefaults` (`selectedProvider`) via `ModelSto
 
 ## Key Patterns
 
-**Dependency Injection**: `DependencyContainer` (injected via `.environmentObject`) wires all layers together using `lazy var` properties and factory methods. ViewModels are created on-demand via `make*ViewModel()` methods. `MessageHistoryStore`, `TemperatureStore` are `lazy var` properties; `ModelStore` is a non-lazy property (needed throughout app lifecycle).
+**Dependency Injection**: `DependencyContainer` (injected via `.environmentObject`) wires all layers together using `lazy var` properties. `makeAgents()` creates all 8 agent instances for the currently selected provider and caches them in `_agents`. When `modelStore.selectedProvider` changes, `_agents` is set to `nil` so the next call to `makeAgents()` creates fresh agents with the new provider. `ModelStore` is a non-lazy property; `MessageHistoryStore` is lazy.
 
 **Agent / Tool Flow**:
-1. `CreateAgentUseCase` creates a `DefaultAgent` wrapping an `LLMProvider` + `ToolExecutor` + `TemperatureStore` + `ModelStore`.
-2. `SendMessageUseCase.execute()` sends the user message, then calls `agent.executeToolsAndContinue()` if the response requires tool use.
-3. `Agent` protocol extension (in `Agent.swift`) provides default `sendMessage` and `executeToolsAndContinue` implementations — tool calls are dispatched to `DefaultToolExecutor`. `maxTokens` is read from `AgentType`.
+1. `DependencyContainer.makeAgents()` creates all agents sharing one `LLMProvider` instance.
+2. `ChatViewModel` holds a reference to `any Agent`. Calling `sendMessage()` calls `agent.send(text)`.
+3. Inside `send()`, the agent delegates to `AgentSending.send(...)`, which handles the full LLM call (including tool execution if needed) and returns the updated `Conversation`.
+4. After `send()` returns, `ChatViewModel` reads `agent.conversation.messages` to refresh the UI.
 
-**Tool implementations** (`DefaultToolExecutor`) use **mock services** — `DefaultWeatherService`, `DefaultCalculatorService`, `DefaultSearchService` — returning simulated data with artificial delays. Tools are enabled per agent type via `AgentType.availableTools` (weather agents have `get_weather`; others return `[]`).
+**Temperature**: Fixed per agent class — not user-configurable. There is no `TemperatureStore`.
+
+**Model switching**: Changing the model in Settings nil-s `_agents` in `DependencyContainer`. `ContentView` reacts to `modelStore.selectedProvider` changes and calls `makeAgents()` + `activateAgent()`, which creates a new `ChatViewModel` with a freshly constructed agent (empty conversation).
+
+**Conversation ownership**: Each agent owns its `Conversation` as a stored property. There is no separate repository. `clearConversation()` replaces it with a fresh `Conversation(systemPrompt:)`.
+
+**Tool implementations** (`DefaultToolExecutor`) use **mock services** — `DefaultWeatherService`, `DefaultCalculatorService`, `DefaultSearchService` — returning simulated data with artificial delays.
 
 **Stores**:
-- `TemperatureStore` — observable temperature value (0.0–2.0, default 0.7), shown as a slider in ChatView.
 - `ModelStore` — observable selected `ProviderType`, persisted to `UserDefaults`.
 - `MessageHistoryStore` — last 10 sent messages, persisted to `UserDefaults` (key `"messageHistory"`). `ChatView` shows history chips above the input field — tapping a chip fills the input, the ✕ button deletes the entry.
 
-**Token Tracking & Costs**: `Conversation` accumulates `totalPromptTokens` / `totalCompletionTokens` across messages. `ChatViewModel` exposes these to the UI. Real-time RUB cost is calculated from `ProviderType` pricing and displayed in `ContentView`.
+**Token Tracking & Costs**: Token counts and `responseTime` are set directly in `AgentSending` on the final `Message`. `ChatViewModel` computes totals by summing `promptTokens` / `completionTokens` / `thoughtsTokens` across all messages. Real-time RUB cost is calculated from `ProviderType` pricing and displayed in `ContentView`.
 
-**Response Time**: `Message` has a `responseTime: TimeInterval?` property. `ChatViewModel` measures elapsed time from request start to response and stores it on the message. Displayed in `MessageRow` as "X.X с".
+**Response Time**: `Message.responseTime: TimeInterval?` is set in `AgentSending` as `Date().timeIntervalSince(startTime)` covering the entire round-trip (including tool calls). Displayed in `MessageRow` as "X.X с".
 
-**Custom Prompts**: `ConversationRepository.setSystemPromptForAgent()` allows overriding the system prompt for `customPrompt` agent. `ChatViewModel.useAsCustomAgentPrompt()` exposes this to the UI (used via context menu on assistant messages from `promptCrafter`).
+**Selected agent persistence**: `ContentView` uses `@AppStorage("selectedAgentName")` to persist the active agent's `name` string across launches. On startup it calls `makeAgents()` and finds the matching agent by name.
 
 **Network Logging**: `NetworkLogger` protocol with `OSNetworkLogger` implementation (uses `os.Logger`). Injected into `NetworkClient` via `DependencyContainer`.
 
-## Adding New Agent Types
+## Adding a New Agent
 
-1. Add a case to `AgentType` with `systemPrompt`, `icon`, `description`, `availableTools`, `maxTokens`, and (optionally) `stopWords`.
-2. If the agent needs a new tool: implement the tool in `DefaultToolExecutor`, add its `ToolDefinition` factory in `ToolDefinition.swift`, and register it in `canExecute(toolName:)`.
+1. Create `Domain/Agents/MyAgent.swift` as a `final class` conforming to `Agent`.
+2. Set `name`, `icon`, `description`, `systemPrompt`, `temperature`, `maxTokens`, `stopWords`, `availableTools` as private properties.
+3. Implement `send(_:)` by delegating to `AgentSending.send(...)` and updating `conversation`.
+4. Implement `clearConversation()` by replacing `conversation` with `Conversation(systemPrompt: systemPrompt)`.
+5. Add an instance to the array in `DependencyContainer.makeAgents()`.
+6. If the agent needs a new tool: implement it in `DefaultToolExecutor`, add its `ToolDefinition` factory in `ToolDefinition.swift`, and register it in `canExecute(toolName:)`.
 
 ## Adding a New LLM Provider
 
 1. Add a provider directory under `Data/Providers/` with `*Provider.swift` (conforming to `LLMProvider`) and `*Models.swift` (request/response types).
 2. Add endpoint cases to `APIEndpoint.swift`.
 3. Add model cases to `ProviderType` enum in `ProviderFactory.swift` with display name and pricing.
-4. Handle new cases in `ProviderFactory.makeProvider()`.
+4. Handle new cases in `ProviderFactory.createProvider()`.

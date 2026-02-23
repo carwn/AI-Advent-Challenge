@@ -11,79 +11,17 @@ struct ChatView: View {
     @ObservedObject var viewModel: ChatViewModel
     @FocusState private var isInputFocused: Bool
     @State private var highlightedChip: String?
-    @State private var showingTemperatureSlider = false
     @State private var chipsContainerWidth: CGFloat = 300
 
     var body: some View {
         VStack(spacing: 0) {
             ScrollViewReader { proxy in
                 ScrollView {
-                    // System prompt header
-                    if !viewModel.systemPrompt.isEmpty {
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack(alignment: .top) {
-                                Text(viewModel.systemPrompt)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                Spacer()
-                                Button {
-                                    withAnimation(.easeInOut(duration: 0.2)) {
-                                        showingTemperatureSlider.toggle()
-                                    }
-                                } label: {
-                                    Text(String(format: "%.1f°", viewModel.temperatureStore.temperature))
-                                        .font(.caption2.monospacedDigit())
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 4)
-                                        .background(Color(uiColor: .tertiarySystemBackground))
-                                        .clipShape(Capsule())
-                                }
-                                .buttonStyle(.plain)
-                            }
-
-                            if showingTemperatureSlider {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "thermometer.low")
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                    Slider(
-                                        value: Binding(
-                                            get: { Float(viewModel.temperatureStore.temperature) },
-                                            set: { viewModel.temperatureStore.temperature = Double($0) }
-                                        ),
-                                        in: TemperatureStore.range,
-                                        step: 0.1
-                                    )
-                                    Image(systemName: "thermometer.high")
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                }
-                                .transition(.opacity.combined(with: .move(edge: .top)))
-                            }
-                        }
-                        .padding(.horizontal)
-                        .padding(.vertical, 8)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color(uiColor: .secondarySystemBackground))
-                        .id("systemPrompt")
-                    }
-                    
                     // Messages list
                     LazyVStack(spacing: 12) {
                         ForEach(viewModel.messages) { message in
                             MessageRow(message: message)
                                 .id(message.id)
-                                .contextMenu {
-                                    if message.role == .assistant,
-                                       viewModel.agentType == .promptCrafter {
-                                        Button {
-                                            viewModel.useAsCustomAgentPrompt(message.content)
-                                        } label: {
-                                            Label("Использовать как системный промпт",
-                                                  systemImage: "text.badge.checkmark")
-                                        }
-                                    }
-                                }
                         }
 
                         if viewModel.isLoading {
@@ -97,9 +35,6 @@ struct ChatView: View {
                         }
                     }
                     .padding()
-                }
-                .onAppear {
-                    proxy.scrollTo("systemPrompt", anchor: .top)
                 }
                 .onChange(of: viewModel.messages.count) { _, _ in
                     if let lastMessage = viewModel.messages.last {
@@ -203,5 +138,4 @@ struct ChatView: View {
         }
         .navigationBarTitleDisplayMode(.inline)
     }
-
 }

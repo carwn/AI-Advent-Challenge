@@ -10,7 +10,9 @@ import Combine
 
 @MainActor
 final class AgentSelectionViewModel: ObservableObject {
-    @Published var availableAgents: [AgentType] = AgentType.allCases
+    @Published var availableAgents: [any Agent]
 
-    init() {}
+    init(agents: [any Agent]) {
+        self.availableAgents = agents
+    }
 }

@@ -12,13 +12,10 @@ struct ContentView: View {
     @State private var showingAgentSelection = false
     @State private var showingSettings = false
     @State private var chatViewModel: ChatViewModel?
+    @State private var currentAgent: (any Agent)?
     @State private var showingError = false
     @State private var errorMessage = ""
-    @AppStorage("selectedAgentTypeRaw") private var selectedAgentTypeRaw: String = AgentType.general.rawValue
-
-    private var selectedAgentType: AgentType {
-        AgentType(rawValue: selectedAgentTypeRaw) ?? .general
-    }
+    @AppStorage("selectedAgentName") private var selectedAgentName: String = "Универсальный ассистент"
 
     var body: some View {
         NavigationStack {
@@ -30,18 +27,34 @@ struct ContentView: View {
                 }
             }
             .task {
-                if chatViewModel == nil { activateAgent(selectedAgentType) }
+                if chatViewModel == nil {
+                    do {
+                        let agents = try container.makeAgents()
+                        let agent = agents.first(where: { $0.name == selectedAgentName }) ?? agents[0]
+                        activateAgent(agent)
+                    } catch {
+                        errorMessage = error.localizedDescription
+                        showingError = true
+                    }
+                }
             }
             .onChange(of: container.modelStore.selectedProvider) { _, _ in
-                activateAgent(selectedAgentType)
+                do {
+                    let agents = try container.makeAgents()
+                    let agent = agents.first(where: { $0.name == selectedAgentName }) ?? agents[0]
+                    activateAgent(agent)
+                } catch {
+                    errorMessage = error.localizedDescription
+                    showingError = true
+                }
             }
             .navigationTitle("AI Ассистент")
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     HStack(spacing: 12) {
-                        if let vm = chatViewModel {
+                        if let vm = chatViewModel, let agent = currentAgent {
                             NavigationTitleView(
-                                agentType: selectedAgentType,
+                                agent: agent,
                                 chatViewModel: vm,
                                 modelStore: container.modelStore,
                                 onTap: { showingAgentSelection = true }
@@ -70,7 +83,7 @@ struct ContentView: View {
             .sheet(isPresented: $showingAgentSelection) {
                 AgentSelectionView(
                     viewModel: container.makeAgentSelectionViewModel(),
-                    onAgentSelected: { agentType in activateAgent(agentType) }
+                    onAgentSelected: { agent in activateAgent(agent) }
                 )
             }
             .sheet(isPresented: $showingSettings) {
@@ -92,20 +105,16 @@ struct ContentView: View {
         }
     }
 
-    private func activateAgent(_ agentType: AgentType) {
-        selectedAgentTypeRaw = agentType.rawValue
+    private func activateAgent(_ agent: any Agent) {
+        selectedAgentName = agent.name
+        currentAgent = agent
         showingAgentSelection = false
-        do {
-            chatViewModel = try container.makeChatViewModel(agentType: agentType)
-        } catch {
-            errorMessage = error.localizedDescription
-            showingError = true
-        }
+        chatViewModel = container.makeChatViewModel(agent: agent)
     }
 }
 
 private struct NavigationTitleView: View {
-    let agentType: AgentType
+    let agent: any Agent
     @ObservedObject var chatViewModel: ChatViewModel
     @ObservedObject var modelStore: ModelStore
     let onTap: () -> Void
@@ -139,9 +148,9 @@ private struct NavigationTitleView: View {
         VStack(alignment: .leading, spacing: 1) {
             Button(action: onTap) {
                 HStack(spacing: 4) {
-                    Image(systemName: agentType.icon)
+                    Image(systemName: agent.icon)
                         .font(.callout)
-                    Text(agentType.rawValue)
+                    Text(agent.name)
                         .font(.headline)
                     Image(systemName: "chevron.down")
                         .font(.caption)
