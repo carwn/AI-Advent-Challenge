@@ -12,6 +12,13 @@ final class GeminiProvider: LLMProvider {
     private let networkClient: NetworkClient
     private let apiKey: String
 
+    var minMaxTokens: Int {
+        switch modelName {
+        case "gemini-2.5-flash", "gemini-2.5-pro": return 8000
+        default: return 0
+        }
+    }
+
     init(modelName: String = "gemini-3-flash-preview", networkClient: NetworkClient, apiKey: String) {
         self.modelName = modelName
         self.networkClient = networkClient

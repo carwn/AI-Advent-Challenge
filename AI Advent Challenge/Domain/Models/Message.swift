@@ -18,6 +18,7 @@ struct Message: Identifiable, Equatable {
     let modelName: String?
     let promptTokens: Int?
     let completionTokens: Int?
+    let thoughtsTokens: Int?
 
     init(
         id: UUID = UUID(),
@@ -29,7 +30,8 @@ struct Message: Identifiable, Equatable {
         responseTime: TimeInterval? = nil,
         modelName: String? = nil,
         promptTokens: Int? = nil,
-        completionTokens: Int? = nil
+        completionTokens: Int? = nil,
+        thoughtsTokens: Int? = nil
     ) {
         self.id = id
         self.role = role
@@ -41,6 +43,7 @@ struct Message: Identifiable, Equatable {
         self.modelName = modelName
         self.promptTokens = promptTokens
         self.completionTokens = completionTokens
+        self.thoughtsTokens = thoughtsTokens
     }
 }
 

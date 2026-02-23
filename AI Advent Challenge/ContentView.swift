@@ -124,7 +124,8 @@ private struct NavigationTitleView: View {
             guard let rawName = msg.modelName,
                   let provider = ProviderType(rawValue: rawName),
                   let tokens = msg.completionTokens else { return sum }
-            return sum + Double(tokens) * provider.pricingRUB.output / 1_000_000
+            let totalOutput = tokens + (msg.thoughtsTokens ?? 0)
+            return sum + Double(totalOutput) * provider.pricingRUB.output / 1_000_000
         }
     }
 
@@ -157,6 +158,10 @@ private struct NavigationTitleView: View {
                     Text("\(chatViewModel.totalPromptTokens) ").foregroundStyle(.secondary)
                     Text("↓").foregroundStyle(.orange)
                     Text("\(chatViewModel.totalCompletionTokens)").foregroundStyle(.secondary)
+                    let thoughts = chatViewModel.totalThoughtsTokens
+                    if thoughts > 0 {
+                        Text(" (+\(thoughts))").foregroundStyle(.purple)
+                    }
                 }
                 .font(.caption2.monospaced())
                 Text("·")

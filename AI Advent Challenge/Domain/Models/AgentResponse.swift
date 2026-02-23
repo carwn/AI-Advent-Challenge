@@ -25,4 +25,5 @@ struct UsageInfo {
     let promptTokens: Int
     let completionTokens: Int
     let totalTokens: Int
+    let thoughtsTokens: Int?
 }

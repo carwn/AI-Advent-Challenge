@@ -19,6 +19,7 @@ final class ChatViewModel: ObservableObject {
 
     var totalPromptTokens: Int { messages.reduce(0) { $0 + ($1.promptTokens ?? 0) } }
     var totalCompletionTokens: Int { messages.reduce(0) { $0 + ($1.completionTokens ?? 0) } }
+    var totalThoughtsTokens: Int { messages.reduce(0) { $0 + ($1.thoughtsTokens ?? 0) } }
 
     private let sendMessageUseCase: SendMessageUseCase
     private let setCustomPromptAction: ((String) -> Void)?
@@ -110,7 +111,8 @@ final class ChatViewModel: ObservableObject {
                     responseTime: elapsed,
                     modelName: modelName,
                     promptTokens: response.usage?.promptTokens,
-                    completionTokens: response.usage?.completionTokens
+                    completionTokens: response.usage?.completionTokens,
+                    thoughtsTokens: response.usage?.thoughtsTokens
                 )
                 messages.append(timedMessage)
                 onResponseTimeUpdated?(msg.id, elapsed, modelName, response.usage?.promptTokens, response.usage?.completionTokens)

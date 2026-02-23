@@ -96,7 +96,8 @@ struct OpenAIResponse: Decodable {
             UsageInfo(
                 promptTokens: $0.promptTokens,
                 completionTokens: $0.completionTokens,
-                totalTokens: $0.totalTokens
+                totalTokens: $0.totalTokens,
+                thoughtsTokens: nil
             )
         }
 

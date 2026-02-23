@@ -28,11 +28,12 @@ extension Agent {
     func sendMessage(
         conversation: Conversation
     ) async throws -> AgentResponse {
+        let effectiveMaxTokens = max(agentType.maxTokens, provider.minMaxTokens)
         let response = try await provider.complete(
             messages: conversation.messages,
             tools: agentType.availableTools,
             temperature: temperature,
-            maxTokens: agentType.maxTokens,
+            maxTokens: effectiveMaxTokens,
             stop: agentType.stopWords
         )
 
@@ -59,12 +60,13 @@ extension Agent {
             conversation.addMessage(toolMessage)
         }
 
+        let effectiveMaxTokens = max(agentType.maxTokens, provider.minMaxTokens)
         // Continue conversation with tool results
         let finalResponse = try await provider.complete(
             messages: conversation.messages,
             tools: agentType.availableTools,
             temperature: temperature,
-            maxTokens: agentType.maxTokens,
+            maxTokens: effectiveMaxTokens,
             stop: nil
         )
 

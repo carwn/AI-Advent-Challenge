@@ -141,6 +141,7 @@ struct GeminiResponse: Decodable {
         let promptTokenCount: Int?
         let candidatesTokenCount: Int?
         let totalTokenCount: Int?
+        let thoughtsTokenCount: Int?
     }
 
     func toAgentResponse() -> AgentResponse {
@@ -178,7 +179,8 @@ struct GeminiResponse: Decodable {
             UsageInfo(
                 promptTokens: $0.promptTokenCount ?? 0,
                 completionTokens: $0.candidatesTokenCount ?? 0,
-                totalTokens: $0.totalTokenCount ?? 0
+                totalTokens: $0.totalTokenCount ?? 0,
+                thoughtsTokens: $0.thoughtsTokenCount
             )
         }
 

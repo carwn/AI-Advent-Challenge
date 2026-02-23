@@ -211,7 +211,8 @@ struct AnthropicResponse: Decodable {
             UsageInfo(
                 promptTokens: $0.inputTokens,
                 completionTokens: $0.outputTokens,
-                totalTokens: $0.inputTokens + $0.outputTokens
+                totalTokens: $0.inputTokens + $0.outputTokens,
+                thoughtsTokens: nil
             )
         }
 

@@ -76,7 +76,8 @@ struct MessageRow: View {
 
     private var outputCostRUB: Double? {
         guard let tokens = message.completionTokens, let p = provider else { return nil }
-        return Double(tokens) * p.pricingRUB.output / 1_000_000
+        let totalOutput = tokens + (message.thoughtsTokens ?? 0)
+        return Double(totalOutput) * p.pricingRUB.output / 1_000_000
     }
 
     private func fmtCost(_ v: Double) -> String {
@@ -90,6 +91,9 @@ struct MessageRow: View {
                 Text("\(message.promptTokens ?? 0) ")
                 Text("↓").foregroundStyle(.orange)
                 Text("\(message.completionTokens ?? 0)")
+                if let thoughts = message.thoughtsTokens {
+                    Text(" (+\(thoughts))").foregroundStyle(.purple)
+                }
             }
             if inputCostRUB != nil || outputCostRUB != nil {
                 Text("·").foregroundStyle(.tertiary)
