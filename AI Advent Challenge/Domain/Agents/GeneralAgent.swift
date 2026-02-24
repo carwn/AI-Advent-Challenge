@@ -14,15 +14,21 @@ final class GeneralAgent: Agent {
     var conversation: Conversation
 
     private let sendMessage: any SendingMessage
+    private let persistence: ConversationPersistenceService
     private let systemPrompt = "You are a helpful AI assistant."
     private let availableTools: [ToolDefinition] = []
     private let maxTokens = 1000
     private let stopWords: [String]? = nil
     private let temperature: Double = 0.7
+    private let persistenceKey = "general_agent"
 
-    init(sendMessage: any SendingMessage) {
+    init(sendMessage: any SendingMessage, persistence: ConversationPersistenceService) {
         self.sendMessage = sendMessage
+        self.persistence = persistence
         self.conversation = Conversation(systemPrompt: systemPrompt)
+        if let saved = persistence.load(forKey: persistenceKey) {
+            self.conversation = saved
+        }
     }
 
     func send(_ text: String) async throws {
@@ -34,9 +40,11 @@ final class GeneralAgent: Agent {
             maxTokens: maxTokens,
             stopWords: stopWords
         )
+        persistence.save(conversation, forKey: persistenceKey)
     }
 
     func clearConversation() {
         conversation = Conversation(systemPrompt: systemPrompt)
+        persistence.delete(forKey: persistenceKey)
     }
 }

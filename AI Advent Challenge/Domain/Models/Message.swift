@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct Message: Identifiable, Equatable {
+struct Message: Identifiable, Equatable, Codable {
     let id: UUID
     let role: MessageRole
     let content: String

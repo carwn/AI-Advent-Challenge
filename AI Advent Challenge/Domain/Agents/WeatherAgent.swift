@@ -14,15 +14,21 @@ final class WeatherAgent: Agent {
     var conversation: Conversation
 
     private let sendMessage: any SendingMessage
+    private let persistence: ConversationPersistenceService
     private let systemPrompt = "You are a weather assistant. Use the weather tool to provide accurate weather information for any location the user asks about."
     private let availableTools: [ToolDefinition] = [.weatherTool()]
     private let maxTokens = 500
     private let stopWords: [String]? = nil
     private let temperature: Double = 0.7
+    private let persistenceKey = "weather_agent"
 
-    init(sendMessage: any SendingMessage) {
+    init(sendMessage: any SendingMessage, persistence: ConversationPersistenceService) {
         self.sendMessage = sendMessage
-        self.conversation = Conversation(systemPrompt: systemPrompt)
+        self.persistence = persistence
+        self.conversation = Conversation(systemPrompt: "You are a weather assistant. Use the weather tool to provide accurate weather information for any location the user asks about.")
+        if let saved = persistence.load(forKey: persistenceKey) {
+            self.conversation = saved
+        }
     }
 
     func send(_ text: String) async throws {
@@ -34,9 +40,11 @@ final class WeatherAgent: Agent {
             maxTokens: maxTokens,
             stopWords: stopWords
         )
+        persistence.save(conversation, forKey: persistenceKey)
     }
 
     func clearConversation() {
         conversation = Conversation(systemPrompt: systemPrompt)
+        persistence.delete(forKey: persistenceKey)
     }
 }

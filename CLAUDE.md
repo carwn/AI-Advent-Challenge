@@ -61,6 +61,7 @@ Infrastructure/
                    NetworkError, NetworkLogger (protocol), OSNetworkLogger
   Security/      — KeychainService, APIKeyManager
   Tools/         — DefaultToolExecutor with mock WeatherService, CalculatorService, SearchService
+  ConversationPersistenceService.swift  — save/load/delete Conversation JSON per agent key
 
 Presentation/
   Views/         — ContentView, ChatView, AgentSelectionView, SettingsView, MessageRow
@@ -158,7 +159,9 @@ Selected model is persisted to `UserDefaults` (`selectedProvider`) via `ModelSto
 
 **Model switching**: Changing the model in Settings nil-s `_agents` in `DependencyContainer`. `ContentView` reacts to `modelStore.selectedProvider` changes and calls `makeAgents()` + `activateAgent()`, which creates a new `ChatViewModel` with a freshly constructed agent (empty conversation).
 
-**Conversation ownership**: Each agent owns its `Conversation` as a stored property. There is no separate repository. `clearConversation()` replaces it with a fresh `Conversation(systemPrompt:)`.
+**Conversation ownership**: Each agent owns its `Conversation` as a stored property. There is no separate repository. `clearConversation()` replaces it with a fresh `Conversation(systemPrompt:)` and deletes the persisted file.
+
+**Conversation persistence**: Each agent persists its `Conversation` to `Application Support/AgentState/<key>.json` via `ConversationPersistenceService`. Loading happens in `init` (restores state across launches); saving happens after each successful `send()`; deletion happens in `clearConversation()`. Each agent class has a static `persistenceKey` string (e.g. `"general_agent"`) that is independent of the display `name`. `ConversationPersistenceService` is a single `lazy var` in `DependencyContainer`, shared by all agents.
 
 **Tool implementations** (`DefaultToolExecutor`) use **mock services** — `DefaultWeatherService`, `DefaultCalculatorService`, `DefaultSearchService` — returning simulated data with artificial delays.
 
@@ -177,11 +180,12 @@ Selected model is persisted to `UserDefaults` (`selectedProvider`) via `ModelSto
 ## Adding a New Agent
 
 1. Create `Domain/Agents/MyAgent.swift` as a `final class` conforming to `Agent`.
-2. Set `name`, `icon`, `description`, `systemPrompt`, `temperature`, `maxTokens`, `stopWords`, `availableTools` as private properties.
-3. Implement `send(_:)` by delegating to `sendMessage.execute(...)` and updating `conversation`.
-4. Implement `clearConversation()` by replacing `conversation` with `Conversation(systemPrompt: systemPrompt)`.
-5. Add an instance to the array in `DependencyContainer.makeAgents()`.
-6. If the agent needs a new tool: implement it in `DefaultToolExecutor`, add its `ToolDefinition` factory in `ToolDefinition.swift`, and register it in `canExecute(toolName:)`.
+2. Set `name`, `icon`, `description`, `systemPrompt`, `temperature`, `maxTokens`, `stopWords`, `availableTools` as private properties. Add a unique `private let persistenceKey = "my_agent"`.
+3. Accept `sendMessage: any SendingMessage` and `persistence: ConversationPersistenceService` in `init`. Initialize `conversation` from `systemPrompt`, then overwrite with `persistence.load(forKey: persistenceKey)` if available.
+4. Implement `send(_:)` by delegating to `sendMessage.execute(...)`, updating `conversation`, and calling `persistence.save(conversation, forKey: persistenceKey)`.
+5. Implement `clearConversation()` by replacing `conversation` with `Conversation(systemPrompt: systemPrompt)` and calling `persistence.delete(forKey: persistenceKey)`.
+6. Add an instance to the array in `DependencyContainer.makeAgents()`, passing `persistence: conversationPersistence`.
+7. If the agent needs a new tool: implement it in `DefaultToolExecutor`, add its `ToolDefinition` factory in `ToolDefinition.swift`, and register it in `canExecute(toolName:)`.
 
 ## Adding a New LLM Provider
 

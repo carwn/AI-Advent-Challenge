@@ -14,6 +14,7 @@ final class PromptCrafterAgent: Agent {
     var conversation: Conversation
 
     private let sendMessage: any SendingMessage
+    private let persistence: ConversationPersistenceService
     private let systemPrompt = """
         You are an expert prompt engineer. When the user describes a task or goal,
         your job is NOT to solve it — instead, craft a precise, effective prompt
@@ -32,10 +33,15 @@ final class PromptCrafterAgent: Agent {
     private let maxTokens = 800
     private let stopWords: [String]? = nil
     private let temperature: Double = 0.7
+    private let persistenceKey = "prompt_crafter_agent"
 
-    init(sendMessage: any SendingMessage) {
+    init(sendMessage: any SendingMessage, persistence: ConversationPersistenceService) {
         self.sendMessage = sendMessage
+        self.persistence = persistence
         self.conversation = Conversation(systemPrompt: systemPrompt)
+        if let saved = persistence.load(forKey: persistenceKey) {
+            self.conversation = saved
+        }
     }
 
     func send(_ text: String) async throws {
@@ -47,9 +53,11 @@ final class PromptCrafterAgent: Agent {
             maxTokens: maxTokens,
             stopWords: stopWords
         )
+        persistence.save(conversation, forKey: persistenceKey)
     }
 
     func clearConversation() {
         conversation = Conversation(systemPrompt: systemPrompt)
+        persistence.delete(forKey: persistenceKey)
     }
 }

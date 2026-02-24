@@ -14,6 +14,7 @@ final class WeatherJSONAgent: Agent {
     var conversation: Conversation
 
     private let sendMessage: any SendingMessage
+    private let persistence: ConversationPersistenceService
     private let systemPrompt = """
         You are a weather assistant that always responds in JSON format. Use the weather tool to get weather data, then return your entire response as a valid JSON object.
         The JSON must include the following fields:
@@ -28,10 +29,15 @@ final class WeatherJSONAgent: Agent {
     private let maxTokens = 500
     private let stopWords: [String]? = nil
     private let temperature: Double = 0.7
+    private let persistenceKey = "weather_json_agent"
 
-    init(sendMessage: any SendingMessage) {
+    init(sendMessage: any SendingMessage, persistence: ConversationPersistenceService) {
         self.sendMessage = sendMessage
+        self.persistence = persistence
         self.conversation = Conversation(systemPrompt: systemPrompt)
+        if let saved = persistence.load(forKey: persistenceKey) {
+            self.conversation = saved
+        }
     }
 
     func send(_ text: String) async throws {
@@ -43,9 +49,11 @@ final class WeatherJSONAgent: Agent {
             maxTokens: maxTokens,
             stopWords: stopWords
         )
+        persistence.save(conversation, forKey: persistenceKey)
     }
 
     func clearConversation() {
         conversation = Conversation(systemPrompt: systemPrompt)
+        persistence.delete(forKey: persistenceKey)
     }
 }

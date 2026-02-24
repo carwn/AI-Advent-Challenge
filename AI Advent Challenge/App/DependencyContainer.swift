@@ -25,6 +25,7 @@ final class DependencyContainer: ObservableObject {
 
     // Domain Layer
     private lazy var toolExecutor: ToolExecutor = DefaultToolExecutor()
+    private lazy var conversationPersistence = ConversationPersistenceService()
 
     // Presentation Layer
     lazy var messageHistoryStore = MessageHistoryStore()
@@ -47,14 +48,14 @@ final class DependencyContainer: ObservableObject {
         let provider = try providerFactory.createProvider(modelStore.selectedProvider)
         let useCase = SendMessageUseCase(provider: provider, toolExecutor: toolExecutor)
         let agents: [any Agent] = [
-            GeneralAgent(sendMessage: useCase),
-            WeatherAgent(sendMessage: useCase),
-            WeatherJSONAgent(sendMessage: useCase),
-            BulletListAgent(sendMessage: useCase),
-            Stop13Agent(sendMessage: useCase),
-            StepByStepAgent(sendMessage: useCase),
-            PromptCrafterAgent(sendMessage: useCase),
-            MultiExpertAgent(sendMessage: useCase),
+            GeneralAgent(sendMessage: useCase, persistence: conversationPersistence),
+            WeatherAgent(sendMessage: useCase, persistence: conversationPersistence),
+            WeatherJSONAgent(sendMessage: useCase, persistence: conversationPersistence),
+            BulletListAgent(sendMessage: useCase, persistence: conversationPersistence),
+            Stop13Agent(sendMessage: useCase, persistence: conversationPersistence),
+            StepByStepAgent(sendMessage: useCase, persistence: conversationPersistence),
+            PromptCrafterAgent(sendMessage: useCase, persistence: conversationPersistence),
+            MultiExpertAgent(sendMessage: useCase, persistence: conversationPersistence),
         ]
         _agents = agents
         return agents

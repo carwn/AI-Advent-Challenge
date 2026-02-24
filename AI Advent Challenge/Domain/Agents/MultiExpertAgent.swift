@@ -14,6 +14,7 @@ final class MultiExpertAgent: Agent {
     var conversation: Conversation
 
     private let sendMessage: any SendingMessage
+    private let persistence: ConversationPersistenceService
     private let systemPrompt = """
         You are a multi-expert reasoning system. For every user request:
 
@@ -34,10 +35,15 @@ final class MultiExpertAgent: Agent {
     private let maxTokens = 2000
     private let stopWords: [String]? = nil
     private let temperature: Double = 0.5
+    private let persistenceKey = "multi_expert_agent"
 
-    init(sendMessage: any SendingMessage) {
+    init(sendMessage: any SendingMessage, persistence: ConversationPersistenceService) {
         self.sendMessage = sendMessage
+        self.persistence = persistence
         self.conversation = Conversation(systemPrompt: systemPrompt)
+        if let saved = persistence.load(forKey: persistenceKey) {
+            self.conversation = saved
+        }
     }
 
     func send(_ text: String) async throws {
@@ -49,9 +55,11 @@ final class MultiExpertAgent: Agent {
             maxTokens: maxTokens,
             stopWords: stopWords
         )
+        persistence.save(conversation, forKey: persistenceKey)
     }
 
     func clearConversation() {
         conversation = Conversation(systemPrompt: systemPrompt)
+        persistence.delete(forKey: persistenceKey)
     }
 }

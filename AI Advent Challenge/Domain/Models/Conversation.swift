@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct Conversation {
+struct Conversation: Codable {
     var messages: [Message]
 
     init(systemPrompt: String) {
