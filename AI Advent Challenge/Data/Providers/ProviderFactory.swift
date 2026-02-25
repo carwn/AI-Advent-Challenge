@@ -8,6 +8,7 @@
 import Foundation
 
 enum ProviderType: String, CaseIterable {
+    case gpt35Turbo = "gpt-3.5-turbo"
     case gpt41Nano = "gpt-4.1-nano"
     case gpt41Mini = "gpt-4.1-mini"
     case gpt41 = "gpt-4.1"
@@ -20,6 +21,7 @@ enum ProviderType: String, CaseIterable {
 
     var displayName: String {
         switch self {
+        case .gpt35Turbo: return "GPT-3.5 Turbo"
         case .gpt41Mini: return "GPT-4.1 Mini"
         case .gpt41Nano: return "GPT-4.1 Nano"
         case .gpt41: return "GPT-4.1"
@@ -35,6 +37,7 @@ enum ProviderType: String, CaseIterable {
     /// Цены в рублях за 1 млн токенов (proxyapi.ru, с НДС 5%)
     var pricingRUB: (input: Double, output: Double) {
         switch self {
+        case .gpt35Turbo:      return (129,  387)
         case .gpt41Nano:       return (26,   104)
         case .gpt41Mini:       return (104,  413)
         case .gpt41:           return (516,  2062)
@@ -62,6 +65,8 @@ final class ProviderFactory {
             throw ProviderError.missingAPIKey("API key not found. Please add it in Settings.")
         }
         switch type {
+        case .gpt35Turbo:
+            return OpenAIProvider(modelName: "gpt-3.5-turbo", networkClient: networkClient, apiKey: apiKey)
         case .gpt41Mini:
             return OpenAIProvider(modelName: "gpt-4.1-mini", networkClient: networkClient, apiKey: apiKey)
         case .gpt41Nano:

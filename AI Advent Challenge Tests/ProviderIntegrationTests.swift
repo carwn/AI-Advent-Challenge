@@ -10,6 +10,21 @@ final class ProviderIntegrationTests: XCTestCase {
 
     private let userMessage = Message(role: .user, content: "Привет")
 
+    // MARK: - OpenAI GPT-3.5 Turbo
+
+    func testOpenAI_gpt35Turbo_respondsToHello() async throws {
+        let provider = try makeOpenAIProvider(model: "gpt-3.5-turbo")
+        let response = try await provider.complete(
+            messages: [userMessage],
+            tools: nil,
+            temperature: 0.7,
+            maxTokens: 100,
+            stop: nil
+        )
+        XCTAssertFalse(response.message.content.isEmpty, "GPT-3.5 Turbo: ответ не должен быть пустым")
+        XCTAssertEqual(response.message.role, .assistant)
+    }
+
     // MARK: - OpenAI GPT-4.1 Mini
 
     func testOpenAI_mini_respondsToHello() async throws {
