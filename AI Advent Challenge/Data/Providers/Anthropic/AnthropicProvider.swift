@@ -106,7 +106,7 @@ final class AnthropicProvider: LLMProvider {
                 result.append(AnthropicMessage(role: "user", content: .text(message.content)))
                 i += 1
 
-            case .system:
+            case .system, .summaryUsage:
                 i += 1
             }
         }

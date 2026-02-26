@@ -52,6 +52,7 @@ enum MessageRole: String, Codable {
     case user
     case assistant
     case tool
+    case summaryUsage
 }
 
 struct ToolCall: Identifiable, Codable, Equatable {

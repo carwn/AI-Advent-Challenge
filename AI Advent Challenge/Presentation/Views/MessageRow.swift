@@ -132,7 +132,7 @@ struct MessageRow: View {
             return Color(uiColor: .systemGray5)
         case .tool:
             return Color(uiColor: .systemGray6)
-        case .system:
+        case .system, .summaryUsage:
             return .clear
         }
     }

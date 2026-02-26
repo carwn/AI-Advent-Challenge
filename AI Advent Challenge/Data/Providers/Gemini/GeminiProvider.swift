@@ -132,7 +132,7 @@ final class GeminiProvider: LLMProvider {
                 }
                 result.append(GeminiContent(role: "user", parts: parts))
 
-            case .system:
+            case .system, .summaryUsage:
                 i += 1
             }
         }

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**AI Advent Challenge** is an iOS SwiftUI app that lets users chat with AI agents powered by multiple LLM providers (OpenAI, Anthropic, Google Gemini) via ProxyAPI.ru. Users can select from 8 specialized agents, switch between 9 models, and agents can call tools (weather, calculator, search) as part of their responses.
+**AI Advent Challenge** is an iOS SwiftUI app that lets users chat with AI agents powered by multiple LLM providers (OpenAI, Anthropic, Google Gemini) via ProxyAPI.ru. Users can select from 9 specialized agents, switch between 9 models, and agents can call tools (weather, calculator, search) as part of their responses.
 
 ## Git
 
@@ -47,7 +47,7 @@ The project follows **Clean Architecture** with these layers (all under `AI Adve
 Domain/          — Pure Swift, no framework dependencies
   Models/        — Message, Conversation, AgentResponse, ToolDefinition
   Protocols/     — Agent, LLMProvider, ToolExecutor
-  Agents/        — SendingMessage (protocol), SendMessageUseCase + 8 concrete agent classes
+  Agents/        — SendingMessage (protocol), SendMessageUseCase + 9 concrete agent classes
 
 Data/
   Providers/
@@ -103,6 +103,7 @@ Each agent lives in `Domain/Agents/` as a `final class`. All configuration (syst
 | `StepByStepAgent` | 0.7 | 1000 | — | — |
 | `PromptCrafterAgent` | 0.7 | 800 | — | — |
 | `MultiExpertAgent` | 0.5 | 2000 | — | — |
+| `ContextManagedAgent` | 0.7 | 1000 | — | — |
 
 Each agent's `send(_:)` delegates to `sendMessage.execute(...)` and stores the returned `Conversation` back to `self.conversation`.
 
@@ -147,7 +148,7 @@ Selected model is persisted to `UserDefaults` (`selectedProvider`) via `ModelSto
 
 ## Key Patterns
 
-**Dependency Injection**: `DependencyContainer` (injected via `.environmentObject`) wires all layers together using `lazy var` properties. `makeAgents()` creates all 8 agent instances for the currently selected provider and caches them in `_agents`. When `modelStore.selectedProvider` changes, `_agents` is set to `nil` so the next call to `makeAgents()` creates fresh agents with the new provider. `ModelStore` is a non-lazy property; `MessageHistoryStore` is lazy.
+**Dependency Injection**: `DependencyContainer` (injected via `.environmentObject`) wires all layers together using `lazy var` properties. `makeAgents()` creates all 9 agent instances for the currently selected provider and caches them in `_agents`. When `modelStore.selectedProvider` changes, `_agents` is set to `nil` so the next call to `makeAgents()` creates fresh agents with the new provider. `ModelStore` is a non-lazy property; `MessageHistoryStore` is lazy.
 
 **Agent / Tool Flow**:
 1. `DependencyContainer.makeAgents()` создаёт один `SendMessageUseCase` и передаёт его всем агентам.
@@ -170,6 +171,8 @@ Selected model is persisted to `UserDefaults` (`selectedProvider`) via `ModelSto
 - `MessageHistoryStore` — last 10 sent messages, persisted to `UserDefaults` (key `"messageHistory"`). `ChatView` shows history chips above the input field — tapping a chip fills the input, the ✕ button deletes the entry.
 
 **Token Tracking & Costs**: Token counts and `responseTime` are set directly in `SendMessageUseCase` on the final `Message`. `ChatViewModel` computes totals by summing `promptTokens` / `completionTokens` / `thoughtsTokens` across all messages. Real-time RUB cost is calculated from `ProviderType` pricing and displayed in `ContentView`.
+
+**Context Management (ContextManagedAgent)**: `ContextManagedAgent` keeps the full message history in `conversation` (for UI) but sends a compressed context to the API. When `promptTokens` of the last response exceeds 1 500, it calls the LLM to generate/update a summary of all messages not yet covered by an existing summary, then sets `summaryMessageCount` to the total count. Subsequent API calls send: system prompt + summary pseudo-turn (`user`/`assistant` pair) + only messages from `summaryMessageCount` onwards. Summary text and `summaryMessageCount` are persisted to `AgentState/context_managed_agent_summary.json` alongside the normal conversation JSON. The cost of summary generation is tracked via `MessageRole.summaryUsage` messages (empty content, token counts only) appended to `conversation`; `ChatView` filters them from display but `ChatViewModel` includes them in cost totals.
 
 **Response Time**: `Message.responseTime: TimeInterval?` is set in `SendMessageUseCase` as `Date().timeIntervalSince(startTime)` covering the entire round-trip (including tool calls). Displayed in `MessageRow` as "X.X с".
 
