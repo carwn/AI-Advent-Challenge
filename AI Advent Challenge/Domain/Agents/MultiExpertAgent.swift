@@ -13,7 +13,7 @@ final class MultiExpertAgent: Agent {
     let description = "Привлекает трёх экспертов, получает их мнения и синтезирует вывод"
     var conversation: Conversation
 
-    private let sendMessage: any SendingMessage
+    private let sendMessage: any SendMessageToLMMUseCase
     private let persistence: ConversationPersistenceService
     private let systemPrompt = """
         You are a multi-expert reasoning system. For every user request:
@@ -37,7 +37,7 @@ final class MultiExpertAgent: Agent {
     private let temperature: Double = 0.5
     private let persistenceKey = "multi_expert_agent"
 
-    init(sendMessage: any SendingMessage, persistence: ConversationPersistenceService) {
+    init(sendMessage: any SendMessageToLMMUseCase, persistence: ConversationPersistenceService) {
         self.sendMessage = sendMessage
         self.persistence = persistence
         self.conversation = Conversation(systemPrompt: systemPrompt)

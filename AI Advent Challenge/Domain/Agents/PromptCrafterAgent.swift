@@ -13,7 +13,7 @@ final class PromptCrafterAgent: Agent {
     let description = "Составляет оптимальный промпт для другого AI-агента"
     var conversation: Conversation
 
-    private let sendMessage: any SendingMessage
+    private let sendMessage: any SendMessageToLMMUseCase
     private let persistence: ConversationPersistenceService
     private let systemPrompt = """
         You are an expert prompt engineer. When the user describes a task or goal,
@@ -35,7 +35,7 @@ final class PromptCrafterAgent: Agent {
     private let temperature: Double = 0.7
     private let persistenceKey = "prompt_crafter_agent"
 
-    init(sendMessage: any SendingMessage, persistence: ConversationPersistenceService) {
+    init(sendMessage: any SendMessageToLMMUseCase, persistence: ConversationPersistenceService) {
         self.sendMessage = sendMessage
         self.persistence = persistence
         self.conversation = Conversation(systemPrompt: systemPrompt)

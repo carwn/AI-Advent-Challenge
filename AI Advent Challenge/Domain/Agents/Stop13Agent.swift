@@ -13,7 +13,7 @@ final class Stop13Agent: Agent {
     let description = "Панически боится числа 13 и останавливает генерацию при его упоминании"
     var conversation: Conversation
 
-    private let sendMessage: any SendingMessage
+    private let sendMessage: any SendMessageToLMMUseCase
     private let persistence: ConversationPersistenceService
     private let systemPrompt = "You are a helpful assistant. Answer any question freely and in detail."
     private let availableTools: [ToolDefinition] = []
@@ -22,7 +22,7 @@ final class Stop13Agent: Agent {
     private let temperature: Double = 0.7
     private let persistenceKey = "stop13_agent"
 
-    init(sendMessage: any SendingMessage, persistence: ConversationPersistenceService) {
+    init(sendMessage: any SendMessageToLMMUseCase, persistence: ConversationPersistenceService) {
         self.sendMessage = sendMessage
         self.persistence = persistence
         self.conversation = Conversation(systemPrompt: systemPrompt)

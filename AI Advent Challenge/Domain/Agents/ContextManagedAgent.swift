@@ -13,7 +13,7 @@ final class ContextManagedAgent: Agent {
     let description = "Полная история в UI; в API — краткое содержание вместо уже сжатых сообщений. Сжатие при >1500 токенов."
     var conversation: Conversation
 
-    private let sendMessage: any SendingMessage
+    private let sendMessage: any SendMessageToLMMUseCase
     private let persistence: ConversationPersistenceService
     private static let persistenceKey = "context_managed_agent"
     private let systemPrompt = "You are a helpful AI assistant with excellent long-term memory. You always take into account the conversation history provided."
@@ -25,7 +25,7 @@ final class ContextManagedAgent: Agent {
     private var summary: String?
     private var summaryMessageCount = 0
 
-    init(sendMessage: any SendingMessage, persistence: ConversationPersistenceService) {
+    init(sendMessage: any SendMessageToLMMUseCase, persistence: ConversationPersistenceService) {
         self.sendMessage = sendMessage
         self.persistence = persistence
         self.conversation = Conversation(systemPrompt: systemPrompt)
@@ -95,9 +95,9 @@ final class ContextManagedAgent: Agent {
             .map { "\($0.role == .user ? "User" : "Assistant"): \($0.content)" }
             .joined(separator: "\n")
 
-        let prompt: String
+        let userMessage: String
         if let existing = summary {
-            prompt = """
+            userMessage = """
             Current summary:
             \(existing)
 
@@ -107,30 +107,28 @@ final class ContextManagedAgent: Agent {
             Update the summary to include the new messages. Return only the updated summary, in the same language as the conversation.
             """
         } else {
-            prompt = "Create a concise summary of the following conversation in the same language as the conversation:\n\n\(newText)"
+            userMessage = "Create a concise summary of the following conversation in the same language as the conversation:\n\n\(newText)"
         }
 
-        let summaryConv = Conversation(systemPrompt: "You are an assistant that creates concise conversation summaries. Respond only with the summary.")
-        guard let result = try? await sendMessage.execute(
-            userText: prompt,
-            conversation: summaryConv,
+        guard let response = try? await sendMessage.execute(
+            systemPrompt: "You are an assistant that creates concise conversation summaries. Respond only with the summary.",
+            userMessage: userMessage,
             tools: [],
             temperature: 0.3,
             maxTokens: 500,
             stopWords: nil
-        ), let responseMsg = result.messages.last(where: { $0.role == .assistant }) else { return }
+        ) else { return }
 
-        self.summary = responseMsg.content
+        self.summary = response.message.content
         self.summaryMessageCount = nonSystem.count
         saveSummaryState()
 
         let accounting = Message(
             role: .summaryUsage,
             content: "",
-            modelName: responseMsg.modelName,
-            promptTokens: responseMsg.promptTokens,
-            completionTokens: responseMsg.completionTokens,
-            thoughtsTokens: responseMsg.thoughtsTokens
+            promptTokens: response.usage?.promptTokens,
+            completionTokens: response.usage?.completionTokens,
+            thoughtsTokens: response.usage?.thoughtsTokens
         )
         conversation.addMessage(accounting)
         persistence.save(conversation, forKey: Self.persistenceKey)

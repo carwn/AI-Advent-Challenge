@@ -13,7 +13,7 @@ final class BulletListAgent: Agent {
     let description = "Отвечает на любой вопрос в виде списка до 5 ключевых пунктов"
     var conversation: Conversation
 
-    private let sendMessage: any SendingMessage
+    private let sendMessage: any SendMessageToLMMUseCase
     private let persistence: ConversationPersistenceService
     private let systemPrompt = "You are a concise assistant. Always respond using a bullet list with a maximum of 5 items. Each item must be short and clear. Never use prose, paragraphs, or more than 5 bullets. If the answer requires more than 5 points, pick the most important ones."
     private let availableTools: [ToolDefinition] = []
@@ -22,7 +22,7 @@ final class BulletListAgent: Agent {
     private let temperature: Double = 0.7
     private let persistenceKey = "bullet_list_agent"
 
-    init(sendMessage: any SendingMessage, persistence: ConversationPersistenceService) {
+    init(sendMessage: any SendMessageToLMMUseCase, persistence: ConversationPersistenceService) {
         self.sendMessage = sendMessage
         self.persistence = persistence
         self.conversation = Conversation(systemPrompt: systemPrompt)

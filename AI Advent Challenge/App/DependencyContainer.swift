@@ -46,7 +46,7 @@ final class DependencyContainer: ObservableObject {
     func makeAgents() throws -> [any Agent] {
         if let cached = _agents { return cached }
         let provider = try providerFactory.createProvider(modelStore.selectedProvider)
-        let useCase = SendMessageUseCase(provider: provider, toolExecutor: toolExecutor)
+        let useCase = SendMessageToLMMInteractor(provider: provider, toolExecutor: toolExecutor)
         let agents: [any Agent] = [
             GeneralAgent(sendMessage: useCase, persistence: conversationPersistence),
             WeatherAgent(sendMessage: useCase, persistence: conversationPersistence),

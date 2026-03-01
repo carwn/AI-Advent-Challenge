@@ -7,7 +7,8 @@
 
 import Foundation
 
-protocol SendingMessage {
+protocol SendMessageToLMMUseCase {
+
     func execute(
         userText: String,
         conversation: Conversation,
@@ -16,9 +17,20 @@ protocol SendingMessage {
         maxTokens: Int,
         stopWords: [String]?
     ) async throws -> Conversation
+    
+    func execute(
+        systemPrompt: String,
+        userMessage: String,
+        tools: [ToolDefinition],
+        temperature: Double,
+        maxTokens: Int,
+        stopWords: [String]?
+    ) async throws -> AgentResponse
+
 }
 
-final class SendMessageUseCase: SendingMessage {
+final class SendMessageToLMMInteractor {
+
     private let provider: LLMProvider
     private let toolExecutor: ToolExecutor
 
@@ -27,6 +39,48 @@ final class SendMessageUseCase: SendingMessage {
         self.toolExecutor = toolExecutor
     }
 
+    // MARK: - Private
+
+    /// Выполняет запрос к провайдеру, при необходимости обрабатывает tool-вызовы
+    /// и повторяет запрос. Мутирует `messages`, добавляя промежуточные сообщения.
+    private func completeResolvingTools(
+        messages: inout [LLMMessage],
+        tools: [ToolDefinition],
+        temperature: Double,
+        maxTokens: Int,
+        stopWords: [String]?
+    ) async throws -> AgentResponse {
+        let effectiveMaxTokens = max(maxTokens, provider.minMaxTokens)
+        let response = try await provider.complete(
+            messages: messages,
+            tools: tools,
+            temperature: temperature,
+            maxTokens: effectiveMaxTokens,
+            stop: stopWords
+        )
+
+        guard response.requiresToolExecution, let toolCalls = response.message.toolCalls else {
+            return response
+        }
+
+        messages.append(LLMMessage(role: .assistant, content: response.message.content, toolCalls: toolCalls))
+        for toolCall in toolCalls {
+            let result = try await toolExecutor.execute(toolCall)
+            messages.append(LLMMessage(role: .tool, content: result, toolCallId: toolCall.id))
+        }
+
+        return try await provider.complete(
+            messages: messages,
+            tools: tools,
+            temperature: temperature,
+            maxTokens: effectiveMaxTokens,
+            stop: nil
+        )
+    }
+}
+
+extension SendMessageToLMMInteractor: SendMessageToLMMUseCase {
+    
     func execute(
         userText: String,
         conversation: Conversation,
@@ -39,40 +93,25 @@ final class SendMessageUseCase: SendingMessage {
         conv.addMessage(Message(role: .user, content: userText))
 
         let startTime = Date()
-        let effectiveMaxTokens = max(maxTokens, provider.minMaxTokens)
-        let response = try await provider.complete(
-            messages: conv.messages.map { $0.toLLMMessage() },
+        var llmMessages = conv.messages.map { $0.toLLMMessage() }
+        let countBefore = llmMessages.count
+        let finalResponse = try await completeResolvingTools(
+            messages: &llmMessages,
             tools: tools,
             temperature: temperature,
-            maxTokens: effectiveMaxTokens,
-            stop: stopWords
+            maxTokens: maxTokens,
+            stopWords: stopWords
         )
 
-        let finalResponse: AgentResponse
-        if response.requiresToolExecution, let toolCalls = response.message.toolCalls {
-            conv.addMessage(Message(
-                role: .assistant,
-                content: response.message.content,
-                toolCalls: response.message.toolCalls
-            ))
-            for toolCall in toolCalls {
-                let result = try await toolExecutor.execute(toolCall)
-                conv.addMessage(Message(role: .tool, content: result, toolCallId: toolCall.id))
-            }
-            finalResponse = try await provider.complete(
-                messages: conv.messages.map { $0.toLLMMessage() },
-                tools: tools,
-                temperature: temperature,
-                maxTokens: effectiveMaxTokens,
-                stop: nil
-            )
-        } else {
-            finalResponse = response
+        // Синхронизируем промежуточные сообщения (tool-call + tool-result),
+        // добавленные хелпером, обратно в conv
+        for msg in llmMessages[countBefore...] {
+            conv.addMessage(Message(role: msg.role, content: msg.content, toolCalls: msg.toolCalls, toolCallId: msg.toolCallId))
         }
 
         let elapsed = Date().timeIntervalSince(startTime)
         let src = finalResponse.message
-        let timedMessage = Message(
+        conv.addMessage(Message(
             role: .assistant,
             content: src.content,
             toolCalls: src.toolCalls,
@@ -81,9 +120,30 @@ final class SendMessageUseCase: SendingMessage {
             promptTokens: finalResponse.usage?.promptTokens,
             completionTokens: finalResponse.usage?.completionTokens,
             thoughtsTokens: finalResponse.usage?.thoughtsTokens
-        )
-        conv.addMessage(timedMessage)
+        ))
 
         return conv
     }
+    
+    func execute(
+        systemPrompt: String,
+        userMessage: String,
+        tools: [ToolDefinition],
+        temperature: Double,
+        maxTokens: Int,
+        stopWords: [String]?
+    ) async throws -> AgentResponse {
+        var messages = [
+            LLMMessage(role: .system, content: systemPrompt),
+            LLMMessage(role: .user, content: userMessage)
+        ]
+        return try await completeResolvingTools(
+            messages: &messages,
+            tools: tools,
+            temperature: temperature,
+            maxTokens: maxTokens,
+            stopWords: stopWords
+        )
+    }
+    
 }

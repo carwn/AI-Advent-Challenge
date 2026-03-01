@@ -13,7 +13,7 @@ final class WeatherAgent: Agent {
     let description = "Специализируется на предоставлении информации о погоде в любом месте"
     var conversation: Conversation
 
-    private let sendMessage: any SendingMessage
+    private let sendMessage: any SendMessageToLMMUseCase
     private let persistence: ConversationPersistenceService
     private let systemPrompt = "You are a weather assistant. Use the weather tool to provide accurate weather information for any location the user asks about."
     private let availableTools: [ToolDefinition] = [.weatherTool()]
@@ -22,7 +22,7 @@ final class WeatherAgent: Agent {
     private let temperature: Double = 0.7
     private let persistenceKey = "weather_agent"
 
-    init(sendMessage: any SendingMessage, persistence: ConversationPersistenceService) {
+    init(sendMessage: any SendMessageToLMMUseCase, persistence: ConversationPersistenceService) {
         self.sendMessage = sendMessage
         self.persistence = persistence
         self.conversation = Conversation(systemPrompt: "You are a weather assistant. Use the weather tool to provide accurate weather information for any location the user asks about.")
