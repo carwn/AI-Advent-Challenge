@@ -59,6 +59,11 @@ final class DependencyContainer: ObservableObject {
                     persistenceKey: "context_managed_agent"
                 )
             ),
+            SlidingWindowAgent(
+                sendMessage: useCase,
+                persistence: conversationPersistence,
+                compressionPolicy: SlidingWindowContextCompressionPolicy(windowSize: 5)
+            ),
         ]
         _agents = agents
         return agents
