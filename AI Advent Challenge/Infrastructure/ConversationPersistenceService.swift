@@ -47,6 +47,22 @@ final class ConversationPersistenceService {
         try? FileManager.default.removeItem(at: fileURL(for: key))
     }
 
+    func copyConversation(from sourceKey: String, to destinationKey: String) {
+        let src = fileURL(for: sourceKey)
+        let dst = fileURL(for: destinationKey)
+        guard FileManager.default.fileExists(atPath: src.path) else { return }
+        try? FileManager.default.copyItem(at: src, to: dst)
+    }
+
+    func copyPolicyCaches(from sourceKey: String, to destinationKey: String) {
+        for suffix in ["_summary", "_facts"] {
+            let src = baseURL.appendingPathComponent("\(sourceKey)\(suffix).json")
+            let dst = baseURL.appendingPathComponent("\(destinationKey)\(suffix).json")
+            guard FileManager.default.fileExists(atPath: src.path) else { continue }
+            try? FileManager.default.copyItem(at: src, to: dst)
+        }
+    }
+
     private func fileURL(for key: String) -> URL {
         baseURL.appendingPathComponent("\(key).json")
     }

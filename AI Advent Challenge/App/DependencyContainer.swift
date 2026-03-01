@@ -34,6 +34,8 @@ final class DependencyContainer: ObservableObject {
     // Domain Layer
     private lazy var toolExecutor: ToolExecutor = DefaultToolExecutor()
     lazy var conversationPersistence = ConversationPersistenceService()
+    lazy var branchConversation: any BranchConversationUseCase =
+        BranchConversationInteractor(persistence: conversationPersistence)
 
     // Presentation Layer
     lazy var messageHistoryStore = MessageHistoryStore()

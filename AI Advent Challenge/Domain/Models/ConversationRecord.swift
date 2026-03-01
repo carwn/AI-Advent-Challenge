@@ -14,4 +14,5 @@ struct ConversationRecord: Identifiable, Codable {
     var lastMessagePreview: String?
     var lastMessageDate: Date?
     let createdAt: Date
+    var parentId: UUID? = nil // nil = корневой диалог
 }

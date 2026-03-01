@@ -35,6 +35,16 @@ struct ContentView: View {
                                 ConversationRow(record: record)
                             }
                             .buttonStyle(.plain)
+                            .swipeActions(edge: .leading) {
+                                Button {
+                                    let branch = container.branchConversation.branch(record: record)
+                                    loadRecords()
+                                    openChat(record: branch)
+                                } label: {
+                                    Label("Ветка", systemImage: "arrow.branch")
+                                }
+                                .tint(.green)
+                            }
                         }
                         .onDelete { indexSet in
                             indexSet.forEach { i in
@@ -106,9 +116,26 @@ struct ContentView: View {
     // MARK: - Helpers
 
     private var recordsSorted: [ConversationRecord] {
-        records.sorted {
+        let byDate: (ConversationRecord, ConversationRecord) -> Bool = {
             ($0.lastMessageDate ?? $0.createdAt) > ($1.lastMessageDate ?? $1.createdAt)
         }
+
+        func children(of id: UUID) -> [ConversationRecord] {
+            records
+                .filter { $0.parentId == id }
+                .sorted(by: byDate)
+                .flatMap { child in [child] + children(of: child.id) }
+        }
+
+        let allIds = Set(records.map { $0.id })
+        let roots = records
+            .filter { record in
+                guard let pid = record.parentId else { return true }
+                return !allIds.contains(pid) // осиротевшая ветка становится корнем
+            }
+            .sorted(by: byDate)
+
+        return roots.flatMap { root in [root] + children(of: root.id) }
     }
 
     private func loadRecords() {
@@ -134,6 +161,13 @@ private struct ConversationRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
+            if record.parentId != nil {
+                Image(systemName: "arrow.turn.down.right")
+                    .font(.caption)
+                    .foregroundStyle(.green)
+                    .frame(width: 12)
+            }
+
             Image(systemName: record.agentIcon)
                 .font(.system(size: 28))
                 .foregroundStyle(.blue)
@@ -149,25 +183,28 @@ private struct ConversationRow: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
 
-                Text(record.agentName)
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                HStack(spacing: 4) {
+                    Text(record.agentName)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                    if record.parentId != nil {
+                        Text("· ветка")
+                            .font(.caption2)
+                            .foregroundStyle(.green.opacity(0.8))
+                    }
+                }
             }
 
             Spacer()
 
             VStack(alignment: .trailing, spacing: 4) {
-                if let date = record.lastMessageDate {
-                    Text(date, style: .relative)
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                } else {
-                    Text(record.createdAt, style: .relative)
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                }
+                let date = record.lastMessageDate ?? record.createdAt
+                Text(date, style: .relative)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
             }
         }
         .padding(.vertical, 4)
+        .padding(.leading, record.parentId != nil ? 0 : 16)
     }
 }
