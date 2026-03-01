@@ -23,7 +23,7 @@ final class SummaryContextCompressionPolicy: ContextCompressionPolicy {
     ///   - persistenceKey: уникальный ключ агента; файл summary сохраняется как `<key>_summary.json`
     init(
         sendMessage: any SendMessageToLMMUseCase,
-        summaryTriggerTokens: Int = 1_500,
+        summaryTriggerTokens: Int = 500,
         persistenceKey: String
     ) {
         self.sendMessage = sendMessage
@@ -38,7 +38,7 @@ final class SummaryContextCompressionPolicy: ContextCompressionPolicy {
 
     var description: String { "Summary при >\(summaryTriggerTokens) токенов" }
 
-    func compress(_ conversation: Conversation) async -> (apiConversation: Conversation, summaryUsage: UsageInfo?) {
+    func compress(_ conversation: Conversation) async -> (apiConversation: Conversation, summaryUsage: UsageInfo?, details: String?) {
         var summaryUsage: UsageInfo?
 
         let lastResponse = conversation.messages.last { $0.role == .assistant }
@@ -46,7 +46,19 @@ final class SummaryContextCompressionPolicy: ContextCompressionPolicy {
             summaryUsage = await generateSummary(from: conversation)
         }
 
-        return (buildAPIConversation(from: conversation), summaryUsage)
+        let nonSystem = conversation.messages.filter { $0.role != .system && $0.role != .summaryUsage }
+        let windowCount = nonSystem.count - summaryMessageCount
+        let compressed = summary != nil || summaryMessageCount > 0
+
+        let details: String?
+        if compressed {
+            var parts = ["история: последние \(windowCount) сообщений"]
+            if let s = summary { parts.append(s) }
+            details = parts.joined(separator: "\n")
+        } else {
+            details = nil
+        }
+        return (buildAPIConversation(from: conversation), summaryUsage, details)
     }
 
     func reset() {

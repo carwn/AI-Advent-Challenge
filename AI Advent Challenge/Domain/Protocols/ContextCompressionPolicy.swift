@@ -14,7 +14,8 @@ protocol ContextCompressionPolicy: AnyObject {
     /// Принимает полный Conversation, возвращает:
     /// - `apiConversation`: сжатый контекст для передачи в LLM
     /// - `summaryUsage`: токены, потраченные на генерацию summary (если была); агент добавляет их сам
-    func compress(_ conversation: Conversation) async -> (apiConversation: Conversation, summaryUsage: UsageInfo?)
+    /// - `details`: текст для отображения в чате (размер окна + факты/summary); nil — если сжатия не было
+    func compress(_ conversation: Conversation) async -> (apiConversation: Conversation, summaryUsage: UsageInfo?, details: String?)
 
     /// Сбрасывает внутреннее состояние. Вызывается при очистке разговора.
     func reset()

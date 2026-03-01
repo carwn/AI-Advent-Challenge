@@ -59,8 +59,9 @@ class BaseAgent: Agent {
     func send(_ text: String) async throws {
         var apiConv = conversation
         var summaryUsage: UsageInfo?
+        var compressionDetails: String?
         if let policy = compressionPolicy {
-            (apiConv, summaryUsage) = await policy.compress(conversation)
+            (apiConv, summaryUsage, compressionDetails) = await policy.compress(conversation)
         }
 
         let countBefore = apiConv.messages.count
@@ -74,16 +75,18 @@ class BaseAgent: Agent {
         )
 
         let newMessages = Array(updated.messages.suffix(from: countBefore))
-        newMessages.forEach { conversation.addMessage($0) }
-        if let usage = summaryUsage {
+        if summaryUsage != nil || compressionDetails != nil {
+            let compressionModelName = newMessages.last { $0.role == .assistant }?.modelName
             conversation.addMessage(Message(
                 role: .summaryUsage,
-                content: "",
-                promptTokens: usage.promptTokens,
-                completionTokens: usage.completionTokens,
-                thoughtsTokens: usage.thoughtsTokens
+                content: compressionDetails ?? "",
+                modelName: compressionModelName,
+                promptTokens: summaryUsage?.promptTokens,
+                completionTokens: summaryUsage?.completionTokens,
+                thoughtsTokens: summaryUsage?.thoughtsTokens
             ))
         }
+        newMessages.forEach { conversation.addMessage($0) }
         persistence.save(conversation, forKey: persistenceKey)
     }
 

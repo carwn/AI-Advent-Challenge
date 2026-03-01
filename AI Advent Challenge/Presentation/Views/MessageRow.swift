@@ -11,6 +11,78 @@ struct MessageRow: View {
     let message: Message
 
     var body: some View {
+        if message.role == .summaryUsage {
+            summaryUsageRow
+        } else {
+            regularRow
+        }
+    }
+
+    // MARK: - Summary Usage Row
+
+    private var summaryUsageRow: some View {
+        VStack(spacing: 4) {
+            HStack(spacing: 6) {
+                line
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .font(.caption2)
+                    .foregroundStyle(.purple.opacity(0.7))
+                summaryUsageContent
+                line
+            }
+            if !message.content.isEmpty {
+                Text(message.content)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.purple.opacity(0.06))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .padding(.horizontal, 8)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    private var line: some View {
+        VStack { Divider().overlay(Color.purple.opacity(0.3)) }
+    }
+
+    private var summaryUsageContent: some View {
+        HStack(spacing: 4) {
+            if let prompt = message.promptTokens, let completion = message.completionTokens {
+                Text("сжатие")
+                    .foregroundStyle(.purple.opacity(0.8))
+                Text("↑\(prompt) ↓\(completion)")
+                    .foregroundStyle(.secondary)
+                if let cost = summaryTotalCostRUB {
+                    Text("·")
+                        .foregroundStyle(.tertiary)
+                    Text("₽\(fmtCost(cost))")
+                        .foregroundStyle(.purple.opacity(0.8))
+                }
+            } else {
+                Text("сжатие контекста")
+                    .foregroundStyle(.purple.opacity(0.8))
+            }
+        }
+        .font(.caption2.monospaced())
+        .fixedSize()
+    }
+
+    private var summaryTotalCostRUB: Double? {
+        guard let p = provider,
+              let prompt = message.promptTokens,
+              let completion = message.completionTokens else { return nil }
+        let inputCost = Double(prompt) * p.pricingRUB.input / 1_000_000
+        let outputCost = Double(completion) * p.pricingRUB.output / 1_000_000
+        return inputCost + outputCost
+    }
+
+    // MARK: - Regular Row
+
+    private var regularRow: some View {
         HStack {
             if message.role == .user {
                 Spacer()

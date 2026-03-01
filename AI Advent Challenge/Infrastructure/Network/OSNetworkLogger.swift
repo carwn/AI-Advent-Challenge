@@ -29,7 +29,10 @@ final class OSNetworkLogger: NetworkLogger {
         if let json = try? JSONSerialization.jsonObject(with: data),
            let pretty = try? JSONSerialization.data(withJSONObject: json, options: .prettyPrinted),
            let string = String(data: pretty, encoding: .utf8) {
+            // JSON-escape sequences (\n, \t) внутри строковых значений заменяем на реальные символы
             return string
+                .replacingOccurrences(of: "\\n", with: "\n")
+                .replacingOccurrences(of: "\\t", with: "\t")
         }
         return String(data: data, encoding: .utf8) ?? "<non-UTF8, \(data.count) bytes>"
     }

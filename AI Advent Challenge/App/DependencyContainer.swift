@@ -64,6 +64,15 @@ final class DependencyContainer: ObservableObject {
                 persistence: conversationPersistence,
                 compressionPolicy: SlidingWindowContextCompressionPolicy(windowSize: 5)
             ),
+            StickyFactsAgent(
+                sendMessage: useCase,
+                persistence: conversationPersistence,
+                compressionPolicy: StickyFactsCompressionPolicy(
+                    sendMessage: useCase,
+                    windowSize: 5,
+                    persistenceKey: "sticky_facts_agent"
+                )
+            ),
         ]
         _agents = agents
         return agents

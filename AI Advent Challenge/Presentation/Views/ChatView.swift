@@ -19,7 +19,7 @@ struct ChatView: View {
                 ScrollView {
                     // Messages list
                     LazyVStack(spacing: 12) {
-                        ForEach(viewModel.messages.filter { $0.role != .summaryUsage }) { message in
+                        ForEach(viewModel.messages) { message in
                             MessageRow(message: message)
                                 .id(message.id)
                         }
