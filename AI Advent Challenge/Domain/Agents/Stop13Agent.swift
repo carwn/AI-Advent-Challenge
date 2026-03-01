@@ -7,44 +7,18 @@
 
 import Foundation
 
-final class Stop13Agent: Agent {
-    let name = "Агент-Трискаидекафоб"
-    let icon = "hand.raised"
-    let description = "Панически боится числа 13 и останавливает генерацию при его упоминании"
-    var conversation: Conversation
-
-    private let sendMessage: any SendMessageToLMMUseCase
-    private let persistence: ConversationPersistenceService
-    private let systemPrompt = "You are a helpful assistant. Answer any question freely and in detail."
-    private let availableTools: [ToolDefinition] = []
-    private let maxTokens = 1000
-    private let stopWords: [String]? = ["13"]
-    private let temperature: Double = 0.7
-    private let persistenceKey = "stop13_agent"
+final class Stop13Agent: BaseAgent {
+    override var name: String { "Агент-Трискаидекафоб" }
+    override var icon: String { "hand.raised" }
+    override var description: String { "Панически боится числа 13 и останавливает генерацию при его упоминании" }
+    override var stopWords: [String]? { ["13"] }
 
     init(sendMessage: any SendMessageToLMMUseCase, persistence: ConversationPersistenceService) {
-        self.sendMessage = sendMessage
-        self.persistence = persistence
-        self.conversation = Conversation(systemPrompt: systemPrompt)
-        if let saved = persistence.load(forKey: persistenceKey) {
-            self.conversation = saved
-        }
-    }
-
-    func send(_ text: String) async throws {
-        conversation = try await sendMessage.execute(
-            userText: text,
-            conversation: conversation,
-            tools: availableTools,
-            temperature: temperature,
-            maxTokens: maxTokens,
-            stopWords: stopWords
+        super.init(
+            sendMessage: sendMessage,
+            persistence: persistence,
+            systemPrompt: "You are a helpful assistant. Answer any question freely and in detail.",
+            persistenceKey: "stop13_agent"
         )
-        persistence.save(conversation, forKey: persistenceKey)
-    }
-
-    func clearConversation() {
-        conversation = Conversation(systemPrompt: systemPrompt)
-        persistence.delete(forKey: persistenceKey)
     }
 }

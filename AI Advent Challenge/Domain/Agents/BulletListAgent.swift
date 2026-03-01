@@ -7,44 +7,18 @@
 
 import Foundation
 
-final class BulletListAgent: Agent {
-    let name = "Агент-список"
-    let icon = "list.bullet"
-    let description = "Отвечает на любой вопрос в виде списка до 5 ключевых пунктов"
-    var conversation: Conversation
-
-    private let sendMessage: any SendMessageToLMMUseCase
-    private let persistence: ConversationPersistenceService
-    private let systemPrompt = "You are a concise assistant. Always respond using a bullet list with a maximum of 5 items. Each item must be short and clear. Never use prose, paragraphs, or more than 5 bullets. If the answer requires more than 5 points, pick the most important ones."
-    private let availableTools: [ToolDefinition] = []
-    private let maxTokens = 300
-    private let stopWords: [String]? = nil
-    private let temperature: Double = 0.7
-    private let persistenceKey = "bullet_list_agent"
+final class BulletListAgent: BaseAgent {
+    override var name: String { "Агент-список" }
+    override var icon: String { "list.bullet" }
+    override var description: String { "Отвечает на любой вопрос в виде списка до 5 ключевых пунктов" }
+    override var maxTokens: Int { 300 }
 
     init(sendMessage: any SendMessageToLMMUseCase, persistence: ConversationPersistenceService) {
-        self.sendMessage = sendMessage
-        self.persistence = persistence
-        self.conversation = Conversation(systemPrompt: systemPrompt)
-        if let saved = persistence.load(forKey: persistenceKey) {
-            self.conversation = saved
-        }
-    }
-
-    func send(_ text: String) async throws {
-        conversation = try await sendMessage.execute(
-            userText: text,
-            conversation: conversation,
-            tools: availableTools,
-            temperature: temperature,
-            maxTokens: maxTokens,
-            stopWords: stopWords
+        super.init(
+            sendMessage: sendMessage,
+            persistence: persistence,
+            systemPrompt: "You are a concise assistant. Always respond using a bullet list with a maximum of 5 items. Each item must be short and clear. Never use prose, paragraphs, or more than 5 bullets. If the answer requires more than 5 points, pick the most important ones.",
+            persistenceKey: "bullet_list_agent"
         )
-        persistence.save(conversation, forKey: persistenceKey)
-    }
-
-    func clearConversation() {
-        conversation = Conversation(systemPrompt: systemPrompt)
-        persistence.delete(forKey: persistenceKey)
     }
 }
