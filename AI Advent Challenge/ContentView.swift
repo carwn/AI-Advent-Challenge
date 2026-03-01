@@ -160,51 +160,61 @@ private struct ConversationRow: View {
     let record: ConversationRecord
 
     var body: some View {
-        HStack(spacing: 12) {
-            if record.parentId != nil {
-                Image(systemName: "arrow.turn.down.right")
-                    .font(.caption)
-                    .foregroundStyle(.green)
-                    .frame(width: 12)
-            }
+        HStack(spacing: .zero) {
+            HStack(spacing: 12) {
+                if record.parentId != nil {
+                    Image(systemName: "arrow.turn.down.right")
+                        .font(.caption)
+                        .foregroundStyle(.green)
+                        .frame(width: 12)
+                }
 
-            Image(systemName: record.agentIcon)
-                .font(.system(size: 28))
-                .foregroundStyle(.blue)
-                .frame(width: 40)
+                Image(systemName: record.agentIcon)
+                    .font(.system(size: 28))
+                    .foregroundStyle(.blue)
+                    .frame(width: 40)
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(record.title)
-                    .font(.headline)
-                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(record.title)
+                        .font(.headline)
+                        .lineLimit(2)
 
-                Text(record.lastMessagePreview ?? "Нет сообщений")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                    Text(record.lastMessagePreview ?? "Нет сообщений")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(3)
 
-                HStack(spacing: 4) {
-                    Text(record.agentName)
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                    if record.parentId != nil {
-                        Text("· ветка")
+                    HStack(spacing: 4) {
+                        Text(record.agentName)
                             .font(.caption2)
-                            .foregroundStyle(.green.opacity(0.8))
+                            .foregroundStyle(.tertiary)
+                        if record.parentId != nil {
+                            Text("· ветка")
+                                .font(.caption2)
+                                .foregroundStyle(.green.opacity(0.8))
+                        }
                     }
                 }
             }
+            
+            Spacer(minLength: 16)
 
-            Spacer()
-
-            VStack(alignment: .trailing, spacing: 4) {
-                let date = record.lastMessageDate ?? record.createdAt
-                Text(date, style: .relative)
+            let date = record.lastMessageDate ?? record.createdAt
+            TimelineView(.everyMinute) { _ in
+                Text(relativeDate(date))
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
+                    .monospacedDigit()
             }
         }
         .padding(.vertical, 4)
-        .padding(.leading, record.parentId != nil ? 0 : 16)
     }
+}
+
+private func relativeDate(_ date: Date) -> String {
+    let interval = Date().timeIntervalSince(date)
+    guard interval >= 60 else { return "только что" }
+    let formatter = RelativeDateTimeFormatter()
+    formatter.unitsStyle = .short
+    return formatter.localizedString(for: date, relativeTo: Date())
 }

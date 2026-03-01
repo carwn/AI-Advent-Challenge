@@ -13,43 +13,39 @@ struct ChatView: View {
     @FocusState private var isInputFocused: Bool
     @State private var highlightedChip: String?
     @State private var chipsContainerWidth: CGFloat = 300
+    @State private var scrollPositionID: UUID?
 
     var body: some View {
         VStack(spacing: 0) {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    // Messages list
-                    LazyVStack(spacing: 12) {
-                        ForEach(viewModel.messages) { message in
-                            MessageRow(message: message)
-                                .id(message.id)
-                        }
+            ScrollView {
+                // Messages list
+                VStack(spacing: 12) {
+                    ForEach(viewModel.messages) { message in
+                        MessageRow(message: message)
+                            .id(message.id)
+                    }
 
-                        if viewModel.isLoading {
-                            HStack {
-                                ProgressView()
-                                Text("Думаю...")
-                                    .foregroundStyle(.secondary)
-                            }
-                            .padding()
-                            .id("thinking")
+                    if viewModel.isLoading {
+                        HStack {
+                            ProgressView()
+                            Text("Думаю...")
+                                .foregroundStyle(.secondary)
                         }
-                    }
-                    .padding()
-                }
-                .onChange(of: viewModel.messages.count) { _, _ in
-                    if let lastMessage = viewModel.messages.last {
-                        withAnimation {
-                            proxy.scrollTo(lastMessage.id, anchor: .bottom)
-                        }
+                        .padding()
                     }
                 }
-                .onChange(of: viewModel.isLoading) { _, isLoading in
-                    if isLoading {
-                        withAnimation {
-                            proxy.scrollTo("thinking", anchor: .bottom)
-                        }
-                    }
+                .padding()
+            }
+            .scrollPosition(id: $scrollPositionID, anchor: .bottom)
+            .onAppear {
+                scrollPositionID = viewModel.messages.last?.id
+            }
+            .onChange(of: viewModel.messages) { _, messages in
+                scrollPositionID = messages.last?.id
+            }
+            .onChange(of: viewModel.isLoading) { _, isLoading in
+                if isLoading {
+                    scrollPositionID = viewModel.messages.last?.id
                 }
             }
 
@@ -137,6 +133,7 @@ struct ChatView: View {
             .padding()
             .background(Color(uiColor: .systemBackground))
         }
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) {
                 ChatNavigationTitleView(viewModel: viewModel, modelStore: container.modelStore)
