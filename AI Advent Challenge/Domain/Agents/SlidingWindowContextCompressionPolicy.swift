@@ -9,6 +9,8 @@ import Foundation
 /// В API передаются только последние `windowSize` сообщений (не считая system).
 final class SlidingWindowContextCompressionPolicy: ContextCompressionPolicy {
 
+    static let defaultWindowSize = 5
+
     private let windowSize: Int
 
     /// - Parameter windowSize: количество последних сообщений, передаваемых в API (по умолчанию 5)

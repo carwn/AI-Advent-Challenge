@@ -73,18 +73,18 @@ final class DependencyContainer: ObservableObject {
             AgentTemplate(id: "context_managed_agent",
                           name: "Агент с памятью",
                           icon: "memorychip",
-                          description: "Summary-сжатие при >1500 токенов",
-                          compressionPolicyDescription: "Summary при >1500 токенов"),
+                          description: "Summary-сжатие при >\(SummaryContextCompressionPolicy.defaultTriggerTokens) токенов",
+                          compressionPolicyDescription: "Summary при >\(SummaryContextCompressionPolicy.defaultTriggerTokens) токенов"),
             AgentTemplate(id: "sliding_window_agent",
                           name: "Агент скользящего окна",
                           icon: "rectangle.3.offgrid",
-                          description: "Последние 5 сообщений в API",
-                          compressionPolicyDescription: "Последние 5 сообщений"),
+                          description: "Последние \(SlidingWindowContextCompressionPolicy.defaultWindowSize) сообщений в API",
+                          compressionPolicyDescription: "Последние \(SlidingWindowContextCompressionPolicy.defaultWindowSize) сообщений"),
             AgentTemplate(id: "sticky_facts_agent",
                           name: "Агент с фактами",
                           icon: "tag.fill",
-                          description: "Факты + последние 10 сообщений в API",
-                          compressionPolicyDescription: "Факты + последние 10 сообщений"),
+                          description: "Факты + последние \(StickyFactsCompressionPolicy.defaultWindowSize) сообщений в API",
+                          compressionPolicyDescription: "Факты + последние \(StickyFactsCompressionPolicy.defaultWindowSize) сообщений"),
         ]
     }
 
@@ -108,6 +108,7 @@ final class DependencyContainer: ObservableObject {
                 conversationId: id,
                 compressionPolicy: SummaryContextCompressionPolicy(
                     sendMessage: useCase,
+                    summaryTriggerTokens: SummaryContextCompressionPolicy.defaultTriggerTokens,
                     persistenceKey: id.uuidString
                 )
             )
@@ -116,7 +117,9 @@ final class DependencyContainer: ObservableObject {
                 sendMessage: useCase,
                 persistence: conversationPersistence,
                 conversationId: id,
-                compressionPolicy: SlidingWindowContextCompressionPolicy(windowSize: 5)
+                compressionPolicy: SlidingWindowContextCompressionPolicy(
+                    windowSize: SlidingWindowContextCompressionPolicy.defaultWindowSize
+                )
             )
         case "sticky_facts_agent":
             return StickyFactsAgent(
@@ -125,7 +128,7 @@ final class DependencyContainer: ObservableObject {
                 conversationId: id,
                 compressionPolicy: StickyFactsCompressionPolicy(
                     sendMessage: useCase,
-                    windowSize: 5,
+                    windowSize: StickyFactsCompressionPolicy.defaultWindowSize,
                     persistenceKey: id.uuidString
                 )
             )

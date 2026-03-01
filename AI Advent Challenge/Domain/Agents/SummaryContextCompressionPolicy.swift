@@ -10,6 +10,8 @@ import Foundation
 /// предыдущей части разговора и подставляет его вместо уже сжатых сообщений.
 final class SummaryContextCompressionPolicy: ContextCompressionPolicy {
 
+    static let defaultTriggerTokens = 500
+
     private let sendMessage: any SendMessageToLMMUseCase
     private let summaryTriggerTokens: Int
     private let stateFileURL: URL

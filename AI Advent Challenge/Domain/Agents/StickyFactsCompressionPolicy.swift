@@ -12,6 +12,8 @@ import Foundation
 /// в виде словаря. В API-запрос отправляет: system + блок фактов + последние N сообщений.
 final class StickyFactsCompressionPolicy: ContextCompressionPolicy {
 
+    static let defaultWindowSize = 5
+
     private let sendMessage: any SendMessageToLMMUseCase
     private let windowSize: Int
     private let stateFileURL: URL
@@ -25,7 +27,7 @@ final class StickyFactsCompressionPolicy: ContextCompressionPolicy {
     ///   - persistenceKey: уникальный ключ агента; файл фактов сохраняется как `<key>_facts.json`
     init(
         sendMessage: any SendMessageToLMMUseCase,
-        windowSize: Int = 10,
+        windowSize: Int = 5,
         persistenceKey: String
     ) {
         self.sendMessage = sendMessage

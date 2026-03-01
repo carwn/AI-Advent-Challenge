@@ -131,7 +131,7 @@ Each agent is a `final class` in `Domain/Agents/`, inheriting from `BaseAgent`. 
 | `WeatherJSONAgent` | Агент погоды (JSON) | cloud.sun.fill | — | **500** | **get_weather** | None |
 | `ContextManagedAgent` | Агент с памятью | memorychip | — | — | — | SummaryContextCompressionPolicy |
 | `SlidingWindowAgent` | Агент скользящего окна | rectangle.3.offgrid | — | — | — | SlidingWindowContextCompressionPolicy (window=5) |
-| `StickyFactsAgent` | Агент с фактами | tag.fill | — | — | — | StickyFactsCompressionPolicy (window=10) |
+| `StickyFactsAgent` | Агент с фактами | tag.fill | — | — | — | StickyFactsCompressionPolicy (window=5) |
 
 _(— means BaseAgent default: temperature 0.7, maxTokens 1000, stopWords nil, availableTools [])_
 
@@ -289,7 +289,7 @@ Summary state (`text` + `messageCount`) persisted to `AgentState/<conversationId
 
 `Domain/Agents/StickyFactsCompressionPolicy.swift` — extracts key-value facts (goals, preferences, decisions, constraints) via LLM and injects them into every API call.
 
-Takes `sendMessage`, window size (default 10 messages), and `conversationId`. On `compress(_:)`:
+Takes `sendMessage`, window size (default 5 messages), and `conversationId`. On `compress(_:)`:
 1. Extracts/updates structured facts from new messages via LLM.
 2. Smart-merges: keeps the longer value when updating a fact (prevents truncation).
 3. Builds API context: system + facts pseudo-turn (`user`/`assistant`) + last N messages.
