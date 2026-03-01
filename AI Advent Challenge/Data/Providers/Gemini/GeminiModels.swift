@@ -147,7 +147,7 @@ struct GeminiResponse: Decodable {
     func toAgentResponse() -> AgentResponse {
         guard let content = candidates.first?.content else {
             return AgentResponse(
-                message: Message(role: .assistant, content: ""),
+                message: LLMResponse(content: ""),
                 requiresToolExecution: false,
                 finishReason: .stop,
                 usage: nil
@@ -173,7 +173,7 @@ struct GeminiResponse: Decodable {
         let requiresToolExecution = toolCalls != nil
         let finishReason: FinishReason = requiresToolExecution ? .toolCalls : .stop
 
-        let message = Message(role: .assistant, content: textContent, toolCalls: toolCalls)
+        let message = LLMResponse(content: textContent, toolCalls: toolCalls)
 
         let usageInfo = usageMetadata.map {
             UsageInfo(

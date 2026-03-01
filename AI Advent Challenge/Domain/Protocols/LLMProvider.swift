@@ -14,7 +14,7 @@ protocol LLMProvider {
     var minMaxTokens: Int { get }
 
     func complete(
-        messages: [Message],
+        messages: [LLMMessage],
         tools: [ToolDefinition]?,
         temperature: Double,
         maxTokens: Int?,

@@ -201,8 +201,7 @@ struct AnthropicResponse: Decodable {
         let requiresToolExecution = stopReason == "tool_use"
         let finishReason: FinishReason = stopReason == "tool_use" ? .toolCalls : .stop
 
-        let message = Message(
-            role: .assistant,
+        let message = LLMResponse(
             content: textContent,
             toolCalls: toolCalls
         )

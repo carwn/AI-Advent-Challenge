@@ -8,7 +8,7 @@
 import Foundation
 
 struct AgentResponse {
-    let message: Message
+    let message: LLMResponse
     let requiresToolExecution: Bool
     let finishReason: FinishReason
     let usage: UsageInfo?

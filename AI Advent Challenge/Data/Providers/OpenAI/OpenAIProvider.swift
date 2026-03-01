@@ -26,7 +26,7 @@ final class OpenAIProvider: LLMProvider {
     }
 
     func complete(
-        messages: [Message],
+        messages: [LLMMessage],
         tools: [ToolDefinition]? = nil,
         temperature: Double = 0.7,
         maxTokens: Int? = nil,

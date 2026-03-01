@@ -41,7 +41,7 @@ final class SendMessageUseCase: SendingMessage {
         let startTime = Date()
         let effectiveMaxTokens = max(maxTokens, provider.minMaxTokens)
         let response = try await provider.complete(
-            messages: conv.messages,
+            messages: conv.messages.map { $0.toLLMMessage() },
             tools: tools,
             temperature: temperature,
             maxTokens: effectiveMaxTokens,
@@ -50,13 +50,17 @@ final class SendMessageUseCase: SendingMessage {
 
         let finalResponse: AgentResponse
         if response.requiresToolExecution, let toolCalls = response.message.toolCalls {
-            conv.addMessage(response.message)
+            conv.addMessage(Message(
+                role: .assistant,
+                content: response.message.content,
+                toolCalls: response.message.toolCalls
+            ))
             for toolCall in toolCalls {
                 let result = try await toolExecutor.execute(toolCall)
                 conv.addMessage(Message(role: .tool, content: result, toolCallId: toolCall.id))
             }
             finalResponse = try await provider.complete(
-                messages: conv.messages,
+                messages: conv.messages.map { $0.toLLMMessage() },
                 tools: tools,
                 temperature: temperature,
                 maxTokens: effectiveMaxTokens,
@@ -69,12 +73,9 @@ final class SendMessageUseCase: SendingMessage {
         let elapsed = Date().timeIntervalSince(startTime)
         let src = finalResponse.message
         let timedMessage = Message(
-            id: src.id,
-            role: src.role,
+            role: .assistant,
             content: src.content,
-            timestamp: src.timestamp,
             toolCalls: src.toolCalls,
-            toolCallId: src.toolCallId,
             responseTime: elapsed,
             modelName: provider.modelName,
             promptTokens: finalResponse.usage?.promptTokens,

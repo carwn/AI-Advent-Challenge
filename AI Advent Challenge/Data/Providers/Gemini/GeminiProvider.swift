@@ -26,7 +26,7 @@ final class GeminiProvider: LLMProvider {
     }
 
     func complete(
-        messages: [Message],
+        messages: [LLMMessage],
         tools: [ToolDefinition]? = nil,
         temperature: Double = 0.7,
         maxTokens: Int? = nil,
@@ -81,7 +81,7 @@ final class GeminiProvider: LLMProvider {
 
     // MARK: - Message Conversion
 
-    private func convertMessages(_ messages: [Message]) -> [GeminiContent] {
+    private func convertMessages(_ messages: [LLMMessage]) -> [GeminiContent] {
         // Маппинг toolCallId → имя функции для tool-результатов
         var toolCallIdToName: [String: String] = [:]
         for message in messages where message.role == .assistant {

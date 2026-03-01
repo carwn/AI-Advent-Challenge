@@ -15,6 +15,7 @@ Never commit changes automatically. Always show a summary of what will be commit
 This is a standard Xcode project with no external package manager (no SPM packages, no Podfile).
 
 - **Build/Run**: Open `AI Advent Challenge.xcodeproj` in Xcode and run on a simulator or device.
+- **Новые файлы**: Проект использует `PBXFileSystemSynchronizedRootGroup` (Xcode 16+) — файлы автоматически включаются в build при добавлении в директорию. Вручную редактировать `project.pbxproj` не нужно.
 - **API Key**: The app requires a ProxyAPI.ru key entered via the in-app Settings screen; it is stored in Keychain under service name `com.aiapp.openai`. A single key is used for all providers (OpenAI, Anthropic, Gemini).
 
 ## Running Tests
@@ -45,7 +46,7 @@ The project follows **Clean Architecture** with these layers (all under `AI Adve
 
 ```
 Domain/          — Pure Swift, no framework dependencies
-  Models/        — Message, Conversation, AgentResponse, ToolDefinition
+  Models/        — Message, Conversation, AgentResponse, ToolDefinition, LLMMessage, LLMResponse
   Protocols/     — Agent, LLMProvider, ToolExecutor
   Agents/        — SendingMessage (protocol), SendMessageUseCase + 9 concrete agent classes
 
@@ -127,6 +128,30 @@ protocol SendingMessage {
 5. Возвращает обновлённый `Conversation`
 
 `DependencyContainer` создаёт один `SendMessageUseCase` на все агенты текущей модели. Агенты хранят `any SendingMessage` — протокол позволяет подменять реализацию (например, мок в тестах).
+
+## LLM Message Models
+
+Определены в `Domain/Models/LLMMessage.swift`. Разделяют исходящие и входящие данные провайдера:
+
+**`LLMMessage`** — исходящее сообщение в API-запросе (`LLMProvider.complete(messages:)`). Содержит только поля, нужные для запроса; не используется в `Conversation`.
+```swift
+struct LLMMessage {
+    let role: MessageRole      // system / user / assistant / tool
+    let content: String
+    let toolCalls: [ToolCall]? // assistant-сообщение с вызовами инструментов
+    let toolCallId: String?    // только для .tool-сообщений (ссылка на tool call)
+}
+```
+
+**`LLMResponse`** — входящий ответ от провайдера (`AgentResponse.message`). Роль всегда `.assistant`, поэтому поле `role` отсутствует; `toolCallId` невозможен в ответе.
+```swift
+struct LLMResponse {
+    let content: String
+    let toolCalls: [ToolCall]? // если LLM запрашивает выполнение инструментов
+}
+```
+
+`Message.toLLMMessage()` (extension в том же файле) конвертирует `Conversation.messages` в `[LLMMessage]` перед вызовом провайдера. `SendMessageUseCase` строит финальный `Message` из `LLMResponse`, добавляя `role: .assistant`, `responseTime`, `modelName` и счётчики токенов.
 
 ## LLM Providers & Models
 

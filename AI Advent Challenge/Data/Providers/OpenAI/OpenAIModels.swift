@@ -84,8 +84,7 @@ struct OpenAIResponse: Decodable {
 
     func toAgentResponse() -> AgentResponse {
         let choice = choices[0]
-        let message = Message(
-            role: MessageRole(rawValue: choice.message.role) ?? .assistant,
+        let message = LLMResponse(
             content: choice.message.content ?? "",
             toolCalls: choice.message.toolCalls
         )
@@ -110,8 +109,8 @@ struct OpenAIResponse: Decodable {
     }
 }
 
-// Extension для конвертации Domain моделей в OpenAI формат
-extension Message {
+// Extension для конвертации LLMMessage в OpenAI формат
+extension LLMMessage {
     func toOpenAIMessage() -> OpenAIMessage {
         OpenAIMessage(
             role: role.rawValue,

@@ -19,7 +19,7 @@ final class AnthropicProvider: LLMProvider {
     }
 
     func complete(
-        messages: [Message],
+        messages: [LLMMessage],
         tools: [ToolDefinition]? = nil,
         temperature: Double = 0.7,
         maxTokens: Int? = nil,
@@ -67,7 +67,7 @@ final class AnthropicProvider: LLMProvider {
 
     // MARK: - Message Conversion
 
-    private func convertMessages(_ messages: [Message]) -> [AnthropicMessage] {
+    private func convertMessages(_ messages: [LLMMessage]) -> [AnthropicMessage] {
         var result: [AnthropicMessage] = []
         var i = 0
 
