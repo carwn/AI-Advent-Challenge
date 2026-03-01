@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**AI Advent Challenge** is an iOS SwiftUI app that lets users chat with AI agents powered by multiple LLM providers (OpenAI, Anthropic, Google Gemini) via ProxyAPI.ru. Users can select from 9 specialized agents, switch between 9 models, and agents can call tools (weather, calculator, search) as part of their responses.
+**AI Advent Challenge** is an iOS SwiftUI app that lets users chat with AI agents powered by multiple LLM providers (OpenAI, Anthropic, Google Gemini) via ProxyAPI.ru. Users can create multiple named conversations, each tied to one of 6 specialized agents, switch between 10 LLM models, and agents can call tools (weather, calculator, search) as part of their responses. Conversations can be branched, creating a tree of forked chats.
 
 ## Git
 
@@ -15,7 +15,7 @@ Never commit changes automatically. Always show a summary of what will be commit
 This is a standard Xcode project with no external package manager (no SPM packages, no Podfile).
 
 - **Build/Run**: Open `AI Advent Challenge.xcodeproj` in Xcode and run on a simulator or device.
-- **Новые файлы**: Проект использует `PBXFileSystemSynchronizedRootGroup` (Xcode 16+) — файлы автоматически включаются в build при добавлении в директорию. Вручную редактировать `project.pbxproj` не нужно.
+- **New files**: The project uses `PBXFileSystemSynchronizedRootGroup` (Xcode 16+) — files are automatically included in the build when added to the directory. No need to manually edit `project.pbxproj`.
 - **API Key**: The app requires a ProxyAPI.ru key entered via the in-app Settings screen; it is stored in Keychain under service name `com.aiapp.openai`. A single key is used for all providers (OpenAI, Anthropic, Gemini).
 
 ## Running Tests
@@ -45,26 +45,30 @@ xcodebuild -project "AI Advent Challenge.xcodeproj" -scheme "AI Advent Challenge
 The project follows **Clean Architecture** with these layers (all under `AI Advent Challenge/`):
 
 ```
-Domain/          — Pure Swift, no framework dependencies
-  Models/        — Message, Conversation, AgentResponse, ToolDefinition, LLMMessage, LLMResponse
+Domain/
+  Models/        — Message, Conversation, ConversationRecord, AgentResponse,
+                   ToolDefinition, LLMMessage, LLMResponse
   Protocols/     — Agent, LLMProvider, ToolExecutor, ContextCompressionPolicy
   Agents/        — SendMessageToLMMUseCase (protocol), SendMessageToLMMInteractor,
-                   BaseAgent (base class), 9 concrete agent classes,
-                   SummaryContextCompressionPolicy
+                   BaseAgent (base class), 6 concrete agent classes,
+                   SummaryContextCompressionPolicy,
+                   SlidingWindowContextCompressionPolicy,
+                   StickyFactsCompressionPolicy
+  UseCases/      — BranchConversationUseCase
 
 Data/
   Providers/
     OpenAI/      — OpenAIProvider (implements LLMProvider), OpenAIModels
     Anthropic/   — AnthropicProvider, AnthropicModels
     Gemini/      — GeminiProvider, GeminiModels
-    ProviderFactory.swift  — ProviderType enum (9 models) + pricing in RUB
+    ProviderFactory.swift  — ProviderType enum (10 models) + pricing in RUB
 
 Infrastructure/
   Network/       — NetworkClient (URLSession-based), APIEndpoint, HTTPMethod,
                    NetworkError, NetworkLogger (protocol), OSNetworkLogger
   Security/      — KeychainService, APIKeyManager
   Tools/         — DefaultToolExecutor with mock WeatherService, CalculatorService, SearchService
-  ConversationPersistenceService.swift  — save/load/delete Conversation JSON per agent key
+  ConversationPersistenceService.swift  — save/load/delete Conversation JSON by UUID
 
 Presentation/
   Views/         — ContentView, ChatView, AgentSelectionView, SettingsView, MessageRow
@@ -82,9 +86,10 @@ Defined in `Domain/Protocols/Agent.swift`. Requires `AnyObject` (class-only) so 
 ```swift
 protocol Agent: AnyObject {
     var name: String { get }
-    var icon: String { get }        // SF Symbol name
+    var icon: String { get }              // SF Symbol name
     var description: String { get }
     var conversation: Conversation { get }
+    var compressionPolicy: (any ContextCompressionPolicy)? { get }
     func send(_ text: String) async throws
     func clearConversation()
 }
@@ -92,178 +97,254 @@ protocol Agent: AnyObject {
 
 ## BaseAgent
 
-`Domain/Agents/BaseAgent.swift` — базовый класс для всех агентов. Хранит общие зависимости и предоставляет реализации `send(_:)` и `clearConversation()`.
+`Domain/Agents/BaseAgent.swift` — base class for all agents. Holds shared dependencies and provides implementations of `send(_:)` and `clearConversation()`.
 
-**Хранимые свойства** (инициализируются через `super.init`):
+**Stored properties** (initialized via `super.init`):
 - `sendMessage: any SendMessageToLMMUseCase`
 - `persistence: ConversationPersistenceService`
-- `compressionPolicy: (any ContextCompressionPolicy)?` — опционально
-- `conversation: Conversation` — загружается из persistence или создаётся из systemPrompt
-- `systemPrompt: String`, `persistenceKey: String` — передаются из подкласса
+- `compressionPolicy: (any ContextCompressionPolicy)?` — optional
+- `conversation: Conversation` — loaded from persistence or built from systemPrompt
+- `systemPrompt: String` — passed from subclass
+- `conversationId: UUID` — identifies the persisted file; passed from `DependencyContainer`
 
-**Переопределяемые вычисляемые свойства** (дефолты в `BaseAgent`):
+**Overridable computed properties** (defaults in `BaseAgent`):
 - `var temperature: Double { 0.7 }`
 - `var maxTokens: Int { 1000 }`
 - `var stopWords: [String]? { nil }`
 - `var availableTools: [ToolDefinition] { [] }`
 
-**Абстрактные** (подкласс обязан переопределить, иначе `fatalError`):
+**Abstract** (subclass must override, otherwise `fatalError`):
 - `var name: String`, `var icon: String`, `var description: String`
 
-**`send(_:)`** реализует полный цикл с поддержкой compression policy: сжимает контекст через `compressionPolicy?.compress(conversation)`, вызывает `sendMessage.execute(...)`, добавляет только новые сообщения в `conversation`, при необходимости добавляет `.summaryUsage`-сообщение, сохраняет через persistence.
+**`send(_:)`** implements the full cycle with compression policy support: compresses context via `compressionPolicy?.compress(conversation)`, calls `sendMessage.execute(...)`, appends only new messages to `conversation`, optionally adds a `.summaryUsage` message if the policy returned `UsageInfo`, saves via persistence, and updates the `ConversationRecord` metadata.
 
-**`clearConversation()`** сбрасывает `conversation` к начальному systemPrompt, вызывает `compressionPolicy?.reset()`, удаляет файл persistence.
+**`clearConversation()`** resets `conversation` to the initial systemPrompt, calls `compressionPolicy?.reset()`, and deletes the persistence file.
 
 ## Concrete Agents
 
-Каждый агент — `final class` в `Domain/Agents/`, наследует `BaseAgent`. Переопределяет только те свойства, которые отличаются от дефолтов.
+Each agent is a `final class` in `Domain/Agents/`, inheriting from `BaseAgent`. Only properties differing from defaults need to be overridden.
 
-| Class | temperature | maxTokens | stopWords | availableTools |
-|---|---|---|---|---|
-| `GeneralAgent` | — | — | — | — |
-| `WeatherAgent` | — | **500** | — | **get_weather** |
-| `WeatherJSONAgent` | — | **500** | — | **get_weather** |
-| `BulletListAgent` | — | **300** | — | — |
-| `Stop13Agent` | — | — | **`["13"]`** | — |
-| `StepByStepAgent` | — | — | — | — |
-| `PromptCrafterAgent` | — | **800** | — | — |
-| `MultiExpertAgent` | **0.5** | **2000** | — | — |
-| `ContextManagedAgent` | — | — | — | — |
+| Class | Name | Icon | temperature | maxTokens | availableTools | Compression Policy |
+|---|---|---|---|---|---|---|
+| `GeneralAgent` | Универсальный ассистент | brain | — | — | — | None |
+| `WeatherAgent` | Агент погоды | cloud.sun | — | **500** | **get_weather** | None |
+| `WeatherJSONAgent` | Агент погоды (JSON) | cloud.sun.fill | — | **500** | **get_weather** | None |
+| `ContextManagedAgent` | Агент с памятью | memorychip | — | — | — | SummaryContextCompressionPolicy |
+| `SlidingWindowAgent` | Агент скользящего окна | rectangle.3.offgrid | — | — | — | SlidingWindowContextCompressionPolicy (window=5) |
+| `StickyFactsAgent` | Агент с фактами | tag.fill | — | — | — | StickyFactsCompressionPolicy (window=10) |
 
-_(— означает дефолт BaseAgent: temperature 0.7, maxTokens 1000, stopWords nil, availableTools [])_
+_(— means BaseAgent default: temperature 0.7, maxTokens 1000, stopWords nil, availableTools [])_
 
-`ContextManagedAgent` дополнительно принимает `compressionPolicy: (any ContextCompressionPolicy)?` в `init`.
+`WeatherJSONAgent` has a detailed system prompt requiring JSON-only output with specific fields (location, temperature, condition, humidity, summary).
 
 ## SendMessageUseCase
 
-`Domain/Agents/AgentSending.swift` — use case, инкапсулирующий полный цикл запроса к LLM.
+`Domain/Agents/AgentSending.swift` — use case encapsulating the full LLM request cycle.
 
-**Протокол** `SendMessageToLMMUseCase` (в том же файле) — два метода:
+**Protocol** `SendMessageToLMMUseCase` — two methods:
 ```swift
 protocol SendMessageToLMMUseCase {
-    // Полный цикл с Conversation; возвращает обновлённый Conversation
+    // Full cycle with Conversation; returns updated Conversation
     func execute(userText:conversation:tools:temperature:maxTokens:stopWords:) async throws -> Conversation
-    // Упрощённый вызов без Conversation; возвращает AgentResponse
+    // Simplified call without Conversation; returns AgentResponse
     func execute(systemPrompt:userMessage:tools:temperature:maxTokens:stopWords:) async throws -> AgentResponse
 }
 ```
 
-**Класс** `SendMessageToLMMInteractor: SendMessageToLMMUseCase` принимает `LLMProvider` и `ToolExecutor` в `init`; `execute(...)` получает только варьируемые данные запроса:
+**Class** `SendMessageToLMMInteractor: SendMessageToLMMUseCase` takes `LLMProvider` and `ToolExecutor` in `init`. `execute(...)` receives only the variable request data:
 
-1. Добавляет user-сообщение в локальную копию `conversation`
-2. Вызывает `provider.complete(...)` с `max(maxTokens, provider.minMaxTokens)`
-3. Если ответ требует выполнения инструментов: добавляет tool-call сообщение, выполняет каждый инструмент через `ToolExecutor`, добавляет tool-result сообщения, повторно вызывает `provider.complete(...)`
-4. Строит финальный `Message` с `responseTime`, `modelName` и счётчиками токенов из `usage`
-5. Возвращает обновлённый `Conversation`
+1. Appends the user message to a local copy of `conversation`
+2. Calls `provider.complete(...)` with `max(maxTokens, provider.minMaxTokens)`
+3. If the response requires tool execution: appends a tool-call message, executes each tool via `ToolExecutor`, appends tool-result messages, calls `provider.complete(...)` again
+4. Builds the final `Message` with `responseTime`, `modelName`, and token counts from `usage`
+5. Returns the updated `Conversation`
 
-`DependencyContainer` создаёт один `SendMessageToLMMInteractor` на все агенты текущей модели. `BaseAgent` хранит `any SendMessageToLMMUseCase` — протокол позволяет подменять реализацию (например, мок в тестах).
+`DependencyContainer` creates one `SendMessageToLMMInteractor` instance and shares it across all agents for the current model. `BaseAgent` holds `any SendMessageToLMMUseCase` — the protocol allows swapping implementations (e.g. mocks in tests).
 
 ## LLM Message Models
 
-Определены в `Domain/Models/LLMMessage.swift`. Разделяют исходящие и входящие данные провайдера:
+Defined in `Domain/Models/LLMMessage.swift`. Separates outgoing and incoming provider data:
 
-**`LLMMessage`** — исходящее сообщение в API-запросе (`LLMProvider.complete(messages:)`). Содержит только поля, нужные для запроса; не используется в `Conversation`.
+**`LLMMessage`** — outgoing message in an API request (`LLMProvider.complete(messages:)`). Contains only fields needed for the request; not used in `Conversation`.
 ```swift
 struct LLMMessage {
     let role: MessageRole      // system / user / assistant / tool
     let content: String
-    let toolCalls: [ToolCall]? // assistant-сообщение с вызовами инструментов
-    let toolCallId: String?    // только для .tool-сообщений (ссылка на tool call)
+    let toolCalls: [ToolCall]? // assistant message with tool call requests
+    let toolCallId: String?    // only for .tool messages (reference to tool call)
 }
 ```
 
-**`LLMResponse`** — входящий ответ от провайдера (`AgentResponse.message`). Роль всегда `.assistant`, поэтому поле `role` отсутствует; `toolCallId` невозможен в ответе.
+**`LLMResponse`** — incoming response from the provider (`AgentResponse.message`). Role is always `.assistant`, so the field is absent; `toolCallId` is impossible in a response.
 ```swift
 struct LLMResponse {
     let content: String
-    let toolCalls: [ToolCall]? // если LLM запрашивает выполнение инструментов
+    let toolCalls: [ToolCall]? // if LLM requests tool execution
 }
 ```
 
-`Message.toLLMMessage()` (extension в том же файле) конвертирует `Conversation.messages` в `[LLMMessage]` перед вызовом провайдера. `SendMessageUseCase` строит финальный `Message` из `LLMResponse`, добавляя `role: .assistant`, `responseTime`, `modelName` и счётчики токенов.
+`Message.toLLMMessage()` (extension in the same file) converts `Conversation.messages` into `[LLMMessage]` before calling the provider. `SendMessageUseCase` builds the final `Message` from `LLMResponse`, adding `role: .assistant`, `responseTime`, `modelName`, and token counts.
 
 ## LLM Providers & Models
 
-All requests go through **ProxyAPI.ru** with a single API key. Defined in `ProviderType` enum with pricing in RUB per 1M tokens:
+All requests go through **ProxyAPI.ru** with a single API key. Defined in the `ProviderType` enum with pricing in RUB per 1M tokens:
 
-| Model | Input (₽/1M) | Output (₽/1M) |
-|-------|-------------|--------------|
-| gpt-4.1-nano | 26 | 104 |
-| gpt-4.1-mini | 104 | 413 |
-| gpt-4.1 | 516 | 2 062 |
-| claude-haiku-4-5 | 295 | 1 474 |
-| claude-sonnet-4-5 | 774 | 3 866 |
-| claude-opus-4-5 | 1 516 | 7 579 |
-| gemini-2.5-flash-lite | 26 | 129 |
-| gemini-2.5-flash | 78 | 645 |
-| gemini-2.5-pro | 323 | 2 577 |
+| Model | Input (₽/1M) | Output (₽/1M) | Notes |
+|-------|-------------|--------------|-------|
+| gpt-3.5-turbo | 129 | 387 | Default on first launch |
+| gpt-4.1-nano | 26 | 104 | |
+| gpt-4.1-mini | 104 | 413 | |
+| gpt-4.1 | 516 | 2 062 | |
+| claude-haiku-4-5 | 295 | 1 474 | |
+| claude-sonnet-4-5 | 774 | 3 866 | |
+| claude-opus-4-5 | 1 516 | 7 579 | |
+| gemini-2.5-flash-lite | 26 | 129 | minMaxTokens=0 |
+| gemini-2.5-flash | 78 | 645 | minMaxTokens=8000 |
+| gemini-2.5-pro | 323 | 2 577 | minMaxTokens=8000 |
 
 Selected model is persisted to `UserDefaults` (`selectedProvider`) via `ModelStore`.
 
-## Key Patterns
+## Multi-Conversation & Branching
 
-**Dependency Injection**: `DependencyContainer` (injected via `.environmentObject`) wires all layers together using `lazy var` properties. `makeAgents()` creates all 9 agent instances for the currently selected provider and caches them in `_agents`. When `modelStore.selectedProvider` changes, `_agents` is set to `nil` so the next call to `makeAgents()` creates fresh agents with the new provider. `ModelStore` is a non-lazy property; `MessageHistoryStore` is lazy.
+The app supports multiple named conversations, each identified by a `UUID`. Conversations are tracked via `ConversationRecord` objects stored in an index file.
 
-**Agent / Tool Flow**:
-1. `DependencyContainer.makeAgents()` создаёт один `SendMessageUseCase` и передаёт его всем агентам.
-2. `ChatViewModel` holds a reference to `any Agent`. Calling `sendMessage()` calls `agent.send(text)`.
-3. Inside `send()`, the agent delegates to `sendMessage.execute(...)`, which handles the full LLM call (including tool execution if needed) and returns the updated `Conversation`.
-4. After `send()` returns, `ChatViewModel` reads `agent.conversation.messages` to refresh the UI.
+**`ConversationRecord`** — metadata stored in `AgentState/conversations_index.json`:
+```swift
+struct ConversationRecord: Identifiable, Codable {
+    let id: UUID           // primary key for persistence
+    let agentKey: String   // e.g. "general_agent"
+    let agentName: String
+    let agentIcon: String
+    var title: String      // set from first user message
+    var lastMessagePreview: String?
+    var lastMessageDate: Date?
+    let createdAt: Date
+    var parentId: UUID?    // nil = root; set when branching
+}
+```
 
-**Temperature**: Fixed per agent class — not user-configurable. There is no `TemperatureStore`.
+**`BranchConversationUseCase`** (`Domain/UseCases/`) creates a branched conversation from an existing one: copies the conversation data and any compression policy caches, assigns a new `UUID`, sets `parentId`, and prefixes the title with "↳".
 
-**Model switching**: Changing the model in Settings nil-s `_agents` in `DependencyContainer`. `ContentView` reacts to `modelStore.selectedProvider` changes and calls `makeAgents()` + `activateAgent()`, which creates a new `ChatViewModel` with a freshly constructed agent (empty conversation).
+**`DependencyContainer`** key methods:
+- `agentTemplates: [AgentTemplate]` — returns the 6 available agent templates
+- `createConversation(agentKey:)` — creates a new `ConversationRecord` and saves it to the index
+- `makeAgent(record: ConversationRecord)` — instantiates an agent with the given conversation ID
+- `makeChatViewModel(agent:)` — wraps an agent in a `ChatViewModel`
+- `makeAgentSelectionViewModel()` — for the agent selection UI
+- `makeSettingsViewModel()` — for the settings UI
 
-**Conversation ownership**: `BaseAgent` owns `conversation` as a stored property. `clearConversation()` replaces it with a fresh `Conversation(systemPrompt:)`, вызывает `compressionPolicy?.reset()` и удаляет файл persistence.
+## Persistence
 
-**Conversation persistence**: `BaseAgent` persists `conversation` to `Application Support/AgentState/<key>.json` via `ConversationPersistenceService`. Loading happens in `BaseAgent.init` (restores state across launches); saving happens after each successful `send()`; deletion happens in `clearConversation()`. Each agent subclass passes a unique `persistenceKey` string (e.g. `"general_agent"`) to `super.init` — independent of the display `name`. `ConversationPersistenceService` is a single `lazy var` in `DependencyContainer`, shared by all agents.
+**Conversation data** — `Application Support/AgentState/<conversationId>.json`
+- Loaded during `BaseAgent.init` (restores state across launches)
+- Saved after each successful `send()`
+- Deleted by `clearConversation()`
 
-**Tool implementations** (`DefaultToolExecutor`) use **mock services** — `DefaultWeatherService`, `DefaultCalculatorService`, `DefaultSearchService` — returning simulated data with artificial delays.
+**Compression policy caches** (keyed by `conversationId`):
+- Summary: `AgentState/<conversationId>_summary.json` (text + messageCount)
+- Facts: `AgentState/<conversationId>_facts.json` (key-value dict + messageCount)
+- Both files are copied when branching a conversation
 
-**Stores**:
-- `ModelStore` — observable selected `ProviderType`, persisted to `UserDefaults`.
-- `MessageHistoryStore` — last 10 sent messages, persisted to `UserDefaults` (key `"messageHistory"`). `ChatView` shows history chips above the input field — tapping a chip fills the input, the ✕ button deletes the entry.
+**Conversation index** — `AgentState/conversations_index.json`
+- Array of `ConversationRecord`; updated after each message (title, preview, date)
 
-**Token Tracking & Costs**: Token counts and `responseTime` are set directly in `SendMessageUseCase` on the final `Message`. `ChatViewModel` computes totals by summing `promptTokens` / `completionTokens` / `thoughtsTokens` across all messages. Real-time RUB cost is calculated from `ProviderType` pricing and displayed in `ContentView`.
+**Model selection** — `UserDefaults` key `"selectedProvider"`; managed by `ModelStore`.
 
-**Context Compression Policy**: Defined in `Domain/Protocols/ContextCompressionPolicy.swift` as a class-only protocol:
+**Message history** — `UserDefaults` key `"messageHistory"`; last 10 sent messages via `MessageHistoryStore`.
+
+## Context Compression Policies
+
+Defined in `Domain/Protocols/ContextCompressionPolicy.swift` as a class-only protocol:
 
 ```swift
 protocol ContextCompressionPolicy: AnyObject {
-    func compress(_ conversation: Conversation) async -> (apiConversation: Conversation, summaryUsage: UsageInfo?)
+    var description: String { get }
+    func compress(_ conversation: Conversation) async -> (
+        apiConversation: Conversation,
+        summaryUsage: UsageInfo?,
+        details: String?
+    )
     func reset()
 }
 ```
 
-`compress(_:)` принимает полный Conversation агента, возвращает сжатый контекст для LLM и опциональный `UsageInfo` токенов, потраченных на генерацию summary. Агент сам создаёт из `UsageInfo` сообщение `MessageRole.summaryUsage` и добавляет его в свой `conversation`. `reset()` вызывается агентом при `clearConversation()`.
+`compress(_:)` receives the agent's full conversation, returns a compressed context for the LLM, optional `UsageInfo` for tokens spent on compression, and an optional `details` string for UI display. The agent creates a `.summaryUsage` message from `UsageInfo` and appends it to its own `conversation`. `reset()` is called by the agent in `clearConversation()`.
 
-**`SummaryContextCompressionPolicy`** (`Domain/Agents/SummaryContextCompressionPolicy.swift`) — реализация на основе summary. Принимает `sendMessage: any SendMessageToLMMUseCase` для собственных LLM-вызовов, `summaryTriggerTokens` (по умолчанию 1 500) и `persistenceKey`. При вызове `compress(_:)`:
-1. Проверяет `promptTokens` последнего assistant-сообщения; если превышен порог — вызывает LLM для генерации/обновления summary по несжатым сообщениям.
-2. Строит API-контекст: system + summary pseudo-turn (`user`/`assistant`) + сообщения, начиная с `summaryMessageCount`.
-3. Возвращает сжатый Conversation и `UsageInfo` (или `nil`, если summary не генерировался).
+### SummaryContextCompressionPolicy
 
-Summary-состояние (`text` + `messageCount`) персистируется в `AgentState/<persistenceKey>_summary.json`.
+`Domain/Agents/SummaryContextCompressionPolicy.swift` — summary-based compression.
 
-**Context Management (ContextManagedAgent)**: Хранит полную историю в `conversation` (для UI), перед каждым запросом вызывает `compressionPolicy?.compress(conversation)`. Если политика вернула `UsageInfo` — агент сам добавляет `Message(role: .summaryUsage, content: "", ...)` в `conversation`. `ChatView` фильтрует `.summaryUsage` из отображения, `ChatViewModel` включает их токены в итоговую стоимость. `ContextCompressionPolicy` передаётся в `init` опционально; без политики агент отправляет полный контекст.
+Takes `sendMessage: any SendMessageToLMMUseCase` for its own LLM calls, `summaryTriggerTokens` (default 500), and `conversationId`. On `compress(_:)`:
+1. Checks `promptTokens` of the last assistant message; if over the threshold — calls LLM to generate/update a summary of uncompressed messages.
+2. Builds API context: system + summary pseudo-turn (`user`/`assistant`) + remaining messages.
+3. Returns compressed conversation and `UsageInfo` (or `nil` if no summary was generated).
 
-**Response Time**: `Message.responseTime: TimeInterval?` is set in `SendMessageUseCase` as `Date().timeIntervalSince(startTime)` covering the entire round-trip (including tool calls). Displayed in `MessageRow` as "X.X с".
+Summary state (`text` + `messageCount`) persisted to `AgentState/<conversationId>_summary.json`.
 
-**Selected agent persistence**: `ContentView` uses `@AppStorage("selectedAgentName")` to persist the active agent's `name` string across launches. On startup it calls `makeAgents()` and finds the matching agent by name.
+### SlidingWindowContextCompressionPolicy
+
+`Domain/Agents/SlidingWindowContextCompressionPolicy.swift` — keeps only the last N non-system messages in the API context. Default window size: 5. Stateless — no persistence. `details` reports "история: последние X сообщений, отброшено Y" when messages are dropped.
+
+### StickyFactsCompressionPolicy
+
+`Domain/Agents/StickyFactsCompressionPolicy.swift` — extracts key-value facts (goals, preferences, decisions, constraints) via LLM and injects them into every API call.
+
+Takes `sendMessage`, window size (default 10 messages), and `conversationId`. On `compress(_:)`:
+1. Extracts/updates structured facts from new messages via LLM.
+2. Smart-merges: keeps the longer value when updating a fact (prevents truncation).
+3. Builds API context: system + facts pseudo-turn (`user`/`assistant`) + last N messages.
+
+Facts state (`key-value dict` + `messageCount`) persisted to `AgentState/<conversationId>_facts.json`.
+
+## Tool System
+
+**Available tools** (registered in `DefaultToolExecutor`):
+- `get_weather` — WeatherResult with location, temperature, condition, humidity. Mock: 0.5 s delay, random values.
+- `calculate` — operations: add/subtract/multiply/divide on an array of operands. Synchronous.
+- `search` — SearchResults with title, snippet, url arrays. Mock: 0.7 s delay, 3 hardcoded results.
+
+`ToolDefinition` factory methods for all tools live in `Domain/Models/ToolDefinition.swift`.
+
+## Key Patterns
+
+**Dependency Injection**: `DependencyContainer` (@MainActor ObservableObject, injected via `.environmentObject`) wires all layers using `lazy var` properties. `ConversationPersistenceService` is shared across all agents.
+
+**Agent / Tool Flow**:
+1. `DependencyContainer.makeAgent(record:)` creates an agent instance with a `conversationId` and a shared `SendMessageUseCase`.
+2. `ChatViewModel` holds a reference to `any Agent`. Calling `sendMessage()` calls `agent.send(text)`.
+3. Inside `send()`, the agent optionally compresses context, delegates to `sendMessage.execute(...)`, and appends new messages to `conversation`.
+4. After `send()` returns, `ChatViewModel` reads `agent.conversation.messages` to refresh the UI.
+
+**Temperature**: Fixed per agent class — not user-configurable.
+
+**Model switching**: Changing the model in Settings creates a new `SendMessageToLMMInteractor` and rebuilds agents on demand. Existing conversations remain on disk and are restored when re-opened.
+
+**Conversation ownership**: `BaseAgent` owns `conversation` as a stored property. `clearConversation()` resets it to the initial system prompt, calls `compressionPolicy?.reset()`, and deletes the persistence file.
+
+**Token Tracking & Costs**: Token counts and `responseTime` are set in `SendMessageToLMMInteractor` on the final `Message`. `ChatViewModel` sums `promptTokens` / `completionTokens` / `thoughtsTokens` across all messages. Real-time RUB cost is calculated from `ProviderType` pricing and displayed in `ContentView`. `.summaryUsage` messages are hidden in the UI but included in cost totals.
+
+**Response Time**: `Message.responseTime: TimeInterval?` covers the entire round-trip including tool calls. Displayed in `MessageRow` as "X.X с".
 
 **Network Logging**: `NetworkLogger` protocol with `OSNetworkLogger` implementation (uses `os.Logger`). Injected into `NetworkClient` via `DependencyContainer`.
 
+**Message History**: `MessageHistoryStore` stores the last 10 sent messages in `UserDefaults`. `ChatView` shows them as chips above the input field — tap to fill input, ✕ to delete.
+
 ## Adding a New Agent
 
-1. Create `Domain/Agents/MyAgent.swift` as a `final class MyAgent: BaseAgent`.
+1. Create `Domain/Agents/MyAgent.swift` as `final class MyAgent: BaseAgent`.
 2. Override `var name: String`, `var icon: String`, `var description: String`.
-3. Override only the properties that differ from BaseAgent defaults (`temperature 0.7`, `maxTokens 1000`, `stopWords nil`, `availableTools []`).
-4. Add `init(sendMessage: any SendMessageToLMMUseCase, persistence: ConversationPersistenceService)` that calls:
+3. Override only properties that differ from BaseAgent defaults (`temperature 0.7`, `maxTokens 1000`, `stopWords nil`, `availableTools []`).
+4. Add `init(sendMessage:persistence:conversationId:)` that calls:
    ```swift
-   super.init(sendMessage: sendMessage, persistence: persistence,
-              systemPrompt: "...", persistenceKey: "my_agent")
+   super.init(
+       sendMessage: sendMessage,
+       persistence: persistence,
+       systemPrompt: "...",
+       conversationId: conversationId
+   )
    ```
-   If the agent uses context compression, add `compressionPolicy:` parameter and pass it to `super.init`.
-5. Add an instance to the array in `DependencyContainer.makeAgents()`, passing `persistence: conversationPersistence`.
+   If the agent uses context compression, construct the policy inside `init` and pass it to `super.init(compressionPolicy:)`.
+5. Register the agent in `DependencyContainer.agentTemplates` and handle its `agentKey` in `makeAgent(record:)`.
 6. If the agent needs a new tool: implement it in `DefaultToolExecutor`, add its `ToolDefinition` factory in `ToolDefinition.swift`, and register it in `canExecute(toolName:)`.
 
 ## Adding a New LLM Provider
