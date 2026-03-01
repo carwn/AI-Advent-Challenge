@@ -36,6 +36,8 @@ final class SummaryContextCompressionPolicy: ContextCompressionPolicy {
 
     // MARK: - ContextCompressionPolicy
 
+    var description: String { "Summary при >\(summaryTriggerTokens) токенов" }
+
     func compress(_ conversation: Conversation) async -> (apiConversation: Conversation, summaryUsage: UsageInfo?) {
         var summaryUsage: UsageInfo?
 

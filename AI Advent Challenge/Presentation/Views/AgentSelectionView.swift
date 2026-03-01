@@ -34,6 +34,13 @@ struct AgentSelectionView: View {
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                     .lineLimit(2)
+
+                                if let policy = agent.compressionPolicy {
+                                    Text(policy.description)
+                                        .font(.caption2)
+                                        .foregroundStyle(.blue)
+                                        .lineLimit(1)
+                                }
                             }
 
                             Spacer()

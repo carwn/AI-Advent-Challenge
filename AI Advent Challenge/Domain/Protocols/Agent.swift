@@ -12,6 +12,7 @@ protocol Agent: AnyObject {
     var icon: String { get }
     var description: String { get }
     var conversation: Conversation { get }
+    var compressionPolicy: (any ContextCompressionPolicy)? { get }
     func send(_ text: String) async throws
     func clearConversation()
 }

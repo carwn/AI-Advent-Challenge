@@ -157,10 +157,21 @@ private struct NavigationTitleView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            Text(modelStore.selectedProvider.displayName)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: true, vertical: false)
+            HStack(spacing: 4) {
+                Text(modelStore.selectedProvider.displayName)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                if let policy = agent.compressionPolicy {
+                    Text("·")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                    Text(policy.description)
+                        .font(.caption2)
+                        .foregroundStyle(.blue)
+                        .lineLimit(1)
+                }
+            }
+            .fixedSize(horizontal: true, vertical: false)
             HStack(spacing: 6) {
                 HStack(spacing: 0) {
                     Text("↑").foregroundStyle(.blue)

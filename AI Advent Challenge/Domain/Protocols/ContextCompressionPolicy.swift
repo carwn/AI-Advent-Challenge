@@ -8,6 +8,9 @@ import Foundation
 /// Стратегия сжатия контекста разговора перед отправкой в LLM.
 protocol ContextCompressionPolicy: AnyObject {
 
+    /// Краткое описание политики сжатия для отображения в UI.
+    var description: String { get }
+
     /// Принимает полный Conversation, возвращает:
     /// - `apiConversation`: сжатый контекст для передачи в LLM
     /// - `summaryUsage`: токены, потраченные на генерацию summary (если была); агент добавляет их сам
