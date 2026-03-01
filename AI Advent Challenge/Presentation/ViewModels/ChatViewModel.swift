@@ -19,6 +19,10 @@ final class ChatViewModel: ObservableObject {
     var totalCompletionTokens: Int { messages.reduce(0) { $0 + ($1.completionTokens ?? 0) } }
     var totalThoughtsTokens: Int { messages.reduce(0) { $0 + ($1.thoughtsTokens ?? 0) } }
 
+    var agentName: String { agent.name }
+    var agentIcon: String { agent.icon }
+    var agentCompressionPolicy: (any ContextCompressionPolicy)? { agent.compressionPolicy }
+
     private let agent: any Agent
     let historyStore: MessageHistoryStore
     private var cancellables = Set<AnyCancellable>()

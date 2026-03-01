@@ -12,12 +12,12 @@ final class GeneralAgent: BaseAgent {
     override var icon: String { "brain" }
     override var description: String { "Универсальный помощник для любых задач" }
 
-    init(sendMessage: any SendMessageToLMMUseCase, persistence: ConversationPersistenceService) {
+    init(sendMessage: any SendMessageToLMMUseCase, persistence: ConversationPersistenceService, conversationId: UUID) {
         super.init(
             sendMessage: sendMessage,
             persistence: persistence,
             systemPrompt: "You are a helpful AI assistant.",
-            persistenceKey: "general_agent"
+            conversationId: conversationId
         )
     }
 }

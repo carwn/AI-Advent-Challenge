@@ -14,12 +14,12 @@ final class WeatherAgent: BaseAgent {
     override var maxTokens: Int { 500 }
     override var availableTools: [ToolDefinition] { [.weatherTool()] }
 
-    init(sendMessage: any SendMessageToLMMUseCase, persistence: ConversationPersistenceService) {
+    init(sendMessage: any SendMessageToLMMUseCase, persistence: ConversationPersistenceService, conversationId: UUID) {
         super.init(
             sendMessage: sendMessage,
             persistence: persistence,
             systemPrompt: "You are a weather assistant. Use the weather tool to provide accurate weather information for any location the user asks about.",
-            persistenceKey: "weather_agent"
+            conversationId: conversationId
         )
     }
 }

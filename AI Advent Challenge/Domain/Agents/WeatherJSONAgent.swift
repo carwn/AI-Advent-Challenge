@@ -14,7 +14,7 @@ final class WeatherJSONAgent: BaseAgent {
     override var maxTokens: Int { 500 }
     override var availableTools: [ToolDefinition] { [.weatherTool()] }
 
-    init(sendMessage: any SendMessageToLMMUseCase, persistence: ConversationPersistenceService) {
+    init(sendMessage: any SendMessageToLMMUseCase, persistence: ConversationPersistenceService, conversationId: UUID) {
         super.init(
             sendMessage: sendMessage,
             persistence: persistence,
@@ -28,7 +28,7 @@ final class WeatherJSONAgent: BaseAgent {
                 - "summary": a brief human-readable description
                 Never include any text outside of the JSON object.
                 """,
-            persistenceKey: "weather_json_agent"
+            conversationId: conversationId
         )
     }
 }

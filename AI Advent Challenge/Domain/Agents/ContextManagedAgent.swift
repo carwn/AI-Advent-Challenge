@@ -13,13 +13,14 @@ final class ContextManagedAgent: BaseAgent {
     init(
         sendMessage: any SendMessageToLMMUseCase,
         persistence: ConversationPersistenceService,
+        conversationId: UUID,
         compressionPolicy: (any ContextCompressionPolicy)? = nil
     ) {
         super.init(
             sendMessage: sendMessage,
             persistence: persistence,
             systemPrompt: "You are a helpful AI assistant with excellent long-term memory. You always take into account the conversation history provided.",
-            persistenceKey: "context_managed_agent",
+            conversationId: conversationId,
             compressionPolicy: compressionPolicy
         )
     }

@@ -9,6 +9,7 @@ import SwiftUI
 
 struct ChatView: View {
     @ObservedObject var viewModel: ChatViewModel
+    @EnvironmentObject var container: DependencyContainer
     @FocusState private var isInputFocused: Bool
     @State private var highlightedChip: String?
     @State private var chipsContainerWidth: CGFloat = 300
@@ -136,6 +137,105 @@ struct ChatView: View {
             .padding()
             .background(Color(uiColor: .systemBackground))
         }
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                ChatNavigationTitleView(viewModel: viewModel, modelStore: container.modelStore)
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(role: .destructive) {
+                    viewModel.clearConversation()
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .disabled(viewModel.isLoading || viewModel.messages.isEmpty)
+            }
+        }
+    }
+}
+
+// MARK: - Navigation title
+
+private struct ChatNavigationTitleView: View {
+    @ObservedObject var viewModel: ChatViewModel
+    @ObservedObject var modelStore: ModelStore
+
+    private var inputCostRUB: Double {
+        viewModel.messages.reduce(0.0) { sum, msg in
+            guard let rawName = msg.modelName,
+                  let provider = ProviderType(rawValue: rawName),
+                  let tokens = msg.promptTokens else { return sum }
+            return sum + Double(tokens) * provider.pricingRUB.input / 1_000_000
+        }
+    }
+
+    private var outputCostRUB: Double {
+        viewModel.messages.reduce(0.0) { sum, msg in
+            guard let rawName = msg.modelName,
+                  let provider = ProviderType(rawValue: rawName),
+                  let tokens = msg.completionTokens else { return sum }
+            let totalOutput = tokens + (msg.thoughtsTokens ?? 0)
+            return sum + Double(totalOutput) * provider.pricingRUB.output / 1_000_000
+        }
+    }
+
+    private var totalCostRUB: Double { inputCostRUB + outputCostRUB }
+
+    private func fmt(_ v: Double) -> String {
+        v < 0.01 ? String(format: "%.4f", v) : String(format: "%.2f", v)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            HStack(spacing: 4) {
+                Image(systemName: viewModel.agentIcon)
+                    .font(.callout)
+                Text(viewModel.agentName)
+                    .font(.headline)
+            }
+            HStack(spacing: 4) {
+                Text(modelStore.selectedProvider.displayName)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                if let policy = viewModel.agentCompressionPolicy {
+                    Text("·")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                    Text(policy.description)
+                        .font(.caption2)
+                        .foregroundStyle(.blue)
+                        .lineLimit(1)
+                }
+            }
+            .fixedSize(horizontal: true, vertical: false)
+            HStack(spacing: 6) {
+                HStack(spacing: 0) {
+                    Text("↑").foregroundStyle(.blue)
+                    Text("\(viewModel.totalPromptTokens) ").foregroundStyle(.secondary)
+                    Text("↓").foregroundStyle(.orange)
+                    Text("\(viewModel.totalCompletionTokens)").foregroundStyle(.secondary)
+                    let thoughts = viewModel.totalThoughtsTokens
+                    if thoughts > 0 {
+                        Text(" (+\(thoughts))").foregroundStyle(.purple)
+                    }
+                }
+                .font(.caption2.monospaced())
+                Text("·")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                HStack(spacing: 0) {
+                    Text("↑").foregroundStyle(.blue)
+                    Text("₽\(fmt(inputCostRUB)) ").foregroundStyle(.secondary)
+                    Text("↓").foregroundStyle(.orange)
+                    Text("₽\(fmt(outputCostRUB)) ").foregroundStyle(.secondary)
+                    Text("∑").foregroundStyle(.secondary)
+                    Text("₽\(fmt(totalCostRUB))").foregroundStyle(.green)
+                }
+                .font(.caption2.monospaced())
+            }
+            .fixedSize(horizontal: true, vertical: false)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
     }
 }

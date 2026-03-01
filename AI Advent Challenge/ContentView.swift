@@ -9,81 +9,74 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var container: DependencyContainer
-    @State private var showingAgentSelection = false
-    @State private var showingSettings = false
+    @State private var records: [ConversationRecord] = []
     @State private var chatViewModel: ChatViewModel?
-    @State private var currentAgent: (any Agent)?
+    @State private var isShowingChat = false
+    @State private var showingNewConversation = false
+    @State private var showingSettings = false
     @State private var showingError = false
     @State private var errorMessage = ""
-    @AppStorage("selectedAgentName") private var selectedAgentName: String = "Универсальный ассистент"
 
     var body: some View {
         NavigationStack {
             Group {
-                if let viewModel = chatViewModel {
-                    ChatView(viewModel: viewModel)
+                if records.isEmpty {
+                    ContentUnavailableView(
+                        "Нет диалогов",
+                        systemImage: "bubble.left.and.bubble.right",
+                        description: Text("Нажмите + чтобы начать новый диалог")
+                    )
                 } else {
-                    ProgressView()
-                }
-            }
-            .task {
-                if chatViewModel == nil {
-                    do {
-                        let agents = try container.makeAgents()
-                        let agent = agents.first(where: { $0.name == selectedAgentName }) ?? agents[0]
-                        activateAgent(agent)
-                    } catch {
-                        errorMessage = error.localizedDescription
-                        showingError = true
-                    }
-                }
-            }
-            .onChange(of: container.modelStore.selectedProvider) { _, _ in
-                do {
-                    let agents = try container.makeAgents()
-                    let agent = agents.first(where: { $0.name == selectedAgentName }) ?? agents[0]
-                    activateAgent(agent)
-                } catch {
-                    errorMessage = error.localizedDescription
-                    showingError = true
-                }
-            }
-            .navigationTitle("AI Ассистент")
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    HStack(spacing: 12) {
-                        if let vm = chatViewModel, let agent = currentAgent {
-                            NavigationTitleView(
-                                agent: agent,
-                                chatViewModel: vm,
-                                modelStore: container.modelStore,
-                                onTap: { showingAgentSelection = true }
-                            )
-                        }
-                        Spacer(minLength: .zero)
-                        if let vm = chatViewModel {
-                            Button(role: .destructive) {
-                                vm.clearConversation()
+                    List {
+                        ForEach(recordsSorted) { record in
+                            Button {
+                                openChat(record: record)
                             } label: {
-                                Image(systemName: "trash")
-                                    .font(.caption)
+                                ConversationRow(record: record)
                             }
-                            .disabled(vm.isLoading)
+                            .buttonStyle(.plain)
                         }
-                        Button {
-                            showingSettings = true
-                        } label: {
-                            Image(systemName: "gear")
-                                .font(.caption)
+                        .onDelete { indexSet in
+                            indexSet.forEach { i in
+                                let record = recordsSorted[i]
+                                container.conversationPersistence.deleteRecord(id: record.id)
+                                container.conversationPersistence.delete(forKey: record.id.uuidString)
+                            }
+                            loadRecords()
                         }
                     }
-                    .frame(maxWidth: .infinity)
                 }
             }
-            .sheet(isPresented: $showingAgentSelection) {
+            .navigationTitle("Диалоги")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showingNewConversation = true
+                    } label: {
+                        Image(systemName: "square.and.pencil")
+                    }
+                }
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        showingSettings = true
+                    } label: {
+                        Image(systemName: "gear")
+                    }
+                }
+            }
+            .navigationDestination(isPresented: $isShowingChat) {
+                if let vm = chatViewModel {
+                    ChatView(viewModel: vm)
+                }
+            }
+            .sheet(isPresented: $showingNewConversation) {
                 AgentSelectionView(
                     viewModel: container.makeAgentSelectionViewModel(),
-                    onAgentSelected: { agent in activateAgent(agent) }
+                    onAgentSelected: { template in
+                        showingNewConversation = false
+                        guard let record = container.createConversation(agentKey: template.id) else { return }
+                        openChat(record: record)
+                    }
                 )
             }
             .sheet(isPresented: $showingSettings) {
@@ -94,10 +87,15 @@ struct ContentView: View {
                     )
                 }
             }
+            .task { loadRecords() }
+            .onAppear { loadRecords() }
+            .onChange(of: container.modelStore.selectedProvider) { _, _ in
+                isShowingChat = false
+                chatViewModel = nil
+                loadRecords()
+            }
             .alert("Требуется настройка", isPresented: $showingError) {
-                Button("Открыть настройки") {
-                    showingSettings = true
-                }
+                Button("Открыть настройки") { showingSettings = true }
                 Button("Отмена", role: .cancel) { }
             } message: {
                 Text(errorMessage)
@@ -105,102 +103,71 @@ struct ContentView: View {
         }
     }
 
-    private func activateAgent(_ agent: any Agent) {
-        selectedAgentName = agent.name
-        currentAgent = agent
-        showingAgentSelection = false
-        chatViewModel = container.makeChatViewModel(agent: agent)
+    // MARK: - Helpers
+
+    private var recordsSorted: [ConversationRecord] {
+        records.sorted {
+            ($0.lastMessageDate ?? $0.createdAt) > ($1.lastMessageDate ?? $1.createdAt)
+        }
+    }
+
+    private func loadRecords() {
+        records = container.conversationPersistence.loadRecords()
+    }
+
+    private func openChat(record: ConversationRecord) {
+        do {
+            let agent = try container.makeAgent(record: record)
+            chatViewModel = container.makeChatViewModel(agent: agent)
+            isShowingChat = true
+        } catch {
+            errorMessage = error.localizedDescription
+            showingError = true
+        }
     }
 }
 
-private struct NavigationTitleView: View {
-    let agent: any Agent
-    @ObservedObject var chatViewModel: ChatViewModel
-    @ObservedObject var modelStore: ModelStore
-    let onTap: () -> Void
+// MARK: - Conversation row
 
-    private var inputCostRUB: Double {
-        chatViewModel.messages.reduce(0.0) { sum, msg in
-            guard let rawName = msg.modelName,
-                  let provider = ProviderType(rawValue: rawName),
-                  let tokens = msg.promptTokens else { return sum }
-            return sum + Double(tokens) * provider.pricingRUB.input / 1_000_000
-        }
-    }
-
-    private var outputCostRUB: Double {
-        chatViewModel.messages.reduce(0.0) { sum, msg in
-            guard let rawName = msg.modelName,
-                  let provider = ProviderType(rawValue: rawName),
-                  let tokens = msg.completionTokens else { return sum }
-            let totalOutput = tokens + (msg.thoughtsTokens ?? 0)
-            return sum + Double(totalOutput) * provider.pricingRUB.output / 1_000_000
-        }
-    }
-
-    private var totalCostRUB: Double { inputCostRUB + outputCostRUB }
-
-    private func fmt(_ v: Double) -> String {
-        v < 0.01 ? String(format: "%.4f", v) : String(format: "%.2f", v)
-    }
+private struct ConversationRow: View {
+    let record: ConversationRecord
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 1) {
-            Button(action: onTap) {
-                HStack(spacing: 4) {
-                    Image(systemName: agent.icon)
-                        .font(.callout)
-                    Text(agent.name)
-                        .font(.headline)
-                    Image(systemName: "chevron.down")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            HStack(spacing: 4) {
-                Text(modelStore.selectedProvider.displayName)
-                    .font(.caption2)
+        HStack(spacing: 12) {
+            Image(systemName: record.agentIcon)
+                .font(.system(size: 28))
+                .foregroundStyle(.blue)
+                .frame(width: 40)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(record.title)
+                    .font(.headline)
+                    .lineLimit(1)
+
+                Text(record.lastMessagePreview ?? "Нет сообщений")
+                    .font(.caption)
                     .foregroundStyle(.secondary)
-                if let policy = agent.compressionPolicy {
-                    Text("·")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                    Text(policy.description)
-                        .font(.caption2)
-                        .foregroundStyle(.blue)
-                        .lineLimit(1)
-                }
-            }
-            .fixedSize(horizontal: true, vertical: false)
-            HStack(spacing: 6) {
-                HStack(spacing: 0) {
-                    Text("↑").foregroundStyle(.blue)
-                    Text("\(chatViewModel.totalPromptTokens) ").foregroundStyle(.secondary)
-                    Text("↓").foregroundStyle(.orange)
-                    Text("\(chatViewModel.totalCompletionTokens)").foregroundStyle(.secondary)
-                    let thoughts = chatViewModel.totalThoughtsTokens
-                    if thoughts > 0 {
-                        Text(" (+\(thoughts))").foregroundStyle(.purple)
-                    }
-                }
-                .font(.caption2.monospaced())
-                Text("·")
+                    .lineLimit(2)
+
+                Text(record.agentName)
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
-                HStack(spacing: 0) {
-                    Text("↑").foregroundStyle(.blue)
-                    Text("₽\(fmt(inputCostRUB)) ").foregroundStyle(.secondary)
-                    Text("↓").foregroundStyle(.orange)
-                    Text("₽\(fmt(outputCostRUB)) ").foregroundStyle(.secondary)
-                    Text("∑").foregroundStyle(.secondary)
-                    Text("₽\(fmt(totalCostRUB))").foregroundStyle(.green)
-                }
-                .font(.caption2.monospaced())
             }
-            .fixedSize(horizontal: true, vertical: false)
+
+            Spacer()
+
+            VStack(alignment: .trailing, spacing: 4) {
+                if let date = record.lastMessageDate {
+                    Text(date, style: .relative)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                } else {
+                    Text(record.createdAt, style: .relative)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+        .padding(.vertical, 4)
     }
 }

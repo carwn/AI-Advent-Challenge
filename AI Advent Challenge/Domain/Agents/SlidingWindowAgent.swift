@@ -13,13 +13,14 @@ final class SlidingWindowAgent: BaseAgent {
     init(
         sendMessage: any SendMessageToLMMUseCase,
         persistence: ConversationPersistenceService,
+        conversationId: UUID,
         compressionPolicy: (any ContextCompressionPolicy)? = nil
     ) {
         super.init(
             sendMessage: sendMessage,
             persistence: persistence,
             systemPrompt: "You are a helpful AI assistant. Answer concisely and clearly.",
-            persistenceKey: "sliding_window_agent",
+            conversationId: conversationId,
             compressionPolicy: compressionPolicy
         )
     }

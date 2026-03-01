@@ -13,13 +13,14 @@ final class StickyFactsAgent: BaseAgent {
     init(
         sendMessage: any SendMessageToLMMUseCase,
         persistence: ConversationPersistenceService,
+        conversationId: UUID,
         compressionPolicy: (any ContextCompressionPolicy)? = nil
     ) {
         super.init(
             sendMessage: sendMessage,
             persistence: persistence,
             systemPrompt: "You are a helpful AI assistant with a structured memory. You always remember important facts about the user's goals, preferences, constraints, and decisions from the conversation.",
-            persistenceKey: "sticky_facts_agent",
+            conversationId: conversationId,
             compressionPolicy: compressionPolicy
         )
     }

@@ -32,7 +32,7 @@ class BaseAgent: Agent {
     let persistence: ConversationPersistenceService
     let compressionPolicy: (any ContextCompressionPolicy)?
     private let systemPrompt: String
-    private let persistenceKey: String
+    private let conversationId: UUID
 
     // MARK: - Init
 
@@ -40,16 +40,16 @@ class BaseAgent: Agent {
         sendMessage: any SendMessageToLMMUseCase,
         persistence: ConversationPersistenceService,
         systemPrompt: String,
-        persistenceKey: String,
+        conversationId: UUID,
         compressionPolicy: (any ContextCompressionPolicy)? = nil
     ) {
         self.sendMessage = sendMessage
         self.persistence = persistence
         self.compressionPolicy = compressionPolicy
         self.systemPrompt = systemPrompt
-        self.persistenceKey = persistenceKey
+        self.conversationId = conversationId
         self.conversation = Conversation(systemPrompt: systemPrompt)
-        if let saved = persistence.load(forKey: persistenceKey) {
+        if let saved = persistence.load(forKey: conversationId.uuidString) {
             self.conversation = saved
         }
     }
@@ -87,12 +87,22 @@ class BaseAgent: Agent {
             ))
         }
         newMessages.forEach { conversation.addMessage($0) }
-        persistence.save(conversation, forKey: persistenceKey)
+        persistence.save(conversation, forKey: conversationId.uuidString)
+
+        let firstUser = conversation.messages.first(where: { $0.role == .user })?.content
+        let lastMsg = conversation.messages.last(where: { $0.role == .user || $0.role == .assistant })
+        persistence.updateRecord(
+            id: conversationId,
+            firstUserMessage: firstUser.map { String($0.prefix(40)) },
+            lastPreview: lastMsg.map { String($0.content.prefix(80)) },
+            lastDate: lastMsg?.timestamp
+        )
     }
 
     func clearConversation() {
         conversation = Conversation(systemPrompt: systemPrompt)
         compressionPolicy?.reset()
-        persistence.delete(forKey: persistenceKey)
+        persistence.delete(forKey: conversationId.uuidString)
+        persistence.updateRecord(id: conversationId, firstUserMessage: nil, lastPreview: nil, lastDate: nil)
     }
 }

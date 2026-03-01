@@ -9,34 +9,33 @@ import SwiftUI
 
 struct AgentSelectionView: View {
     @StateObject var viewModel: AgentSelectionViewModel
-    let onAgentSelected: (any Agent) -> Void
+    let onAgentSelected: (AgentTemplate) -> Void
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
             List {
-                ForEach(viewModel.availableAgents.indices, id: \.self) { idx in
-                    let agent = viewModel.availableAgents[idx]
+                ForEach(viewModel.templates) { template in
                     Button {
-                        onAgentSelected(agent)
+                        onAgentSelected(template)
                     } label: {
                         HStack(spacing: 16) {
-                            Image(systemName: agent.icon)
+                            Image(systemName: template.icon)
                                 .font(.system(size: 32))
                                 .foregroundStyle(.blue)
                                 .frame(width: 50)
 
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(agent.name)
+                                Text(template.name)
                                     .font(.headline)
 
-                                Text(agent.description)
+                                Text(template.description)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                     .lineLimit(2)
 
-                                if let policy = agent.compressionPolicy {
-                                    Text(policy.description)
+                                if let policyDesc = template.compressionPolicyDescription {
+                                    Text(policyDesc)
                                         .font(.caption2)
                                         .foregroundStyle(.blue)
                                         .lineLimit(1)
@@ -52,7 +51,7 @@ struct AgentSelectionView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .navigationTitle("Выбор агента")
+            .navigationTitle("Новый диалог")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
