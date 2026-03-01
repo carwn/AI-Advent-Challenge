@@ -51,11 +51,6 @@ final class DependencyContainer: ObservableObject {
             GeneralAgent(sendMessage: useCase, persistence: conversationPersistence),
             WeatherAgent(sendMessage: useCase, persistence: conversationPersistence),
             WeatherJSONAgent(sendMessage: useCase, persistence: conversationPersistence),
-            BulletListAgent(sendMessage: useCase, persistence: conversationPersistence),
-            Stop13Agent(sendMessage: useCase, persistence: conversationPersistence),
-            StepByStepAgent(sendMessage: useCase, persistence: conversationPersistence),
-            PromptCrafterAgent(sendMessage: useCase, persistence: conversationPersistence),
-            MultiExpertAgent(sendMessage: useCase, persistence: conversationPersistence),
             ContextManagedAgent(
                 sendMessage: useCase,
                 persistence: conversationPersistence,
