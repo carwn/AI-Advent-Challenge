@@ -56,7 +56,14 @@ final class DependencyContainer: ObservableObject {
             StepByStepAgent(sendMessage: useCase, persistence: conversationPersistence),
             PromptCrafterAgent(sendMessage: useCase, persistence: conversationPersistence),
             MultiExpertAgent(sendMessage: useCase, persistence: conversationPersistence),
-            ContextManagedAgent(sendMessage: useCase, persistence: conversationPersistence),
+            ContextManagedAgent(
+                sendMessage: useCase,
+                persistence: conversationPersistence,
+                compressionPolicy: SummaryContextCompressionPolicy(
+                    sendMessage: useCase,
+                    persistenceKey: "context_managed_agent"
+                )
+            ),
         ]
         _agents = agents
         return agents

@@ -47,8 +47,9 @@ The project follows **Clean Architecture** with these layers (all under `AI Adve
 ```
 Domain/          — Pure Swift, no framework dependencies
   Models/        — Message, Conversation, AgentResponse, ToolDefinition, LLMMessage, LLMResponse
-  Protocols/     — Agent, LLMProvider, ToolExecutor
-  Agents/        — SendingMessage (protocol), SendMessageUseCase + 9 concrete agent classes
+  Protocols/     — Agent, LLMProvider, ToolExecutor, ContextCompressionPolicy
+  Agents/        — SendingMessage (protocol), SendMessageUseCase + 9 concrete agent classes,
+                   SummaryContextCompressionPolicy
 
 Data/
   Providers/
@@ -197,7 +198,25 @@ Selected model is persisted to `UserDefaults` (`selectedProvider`) via `ModelSto
 
 **Token Tracking & Costs**: Token counts and `responseTime` are set directly in `SendMessageUseCase` on the final `Message`. `ChatViewModel` computes totals by summing `promptTokens` / `completionTokens` / `thoughtsTokens` across all messages. Real-time RUB cost is calculated from `ProviderType` pricing and displayed in `ContentView`.
 
-**Context Management (ContextManagedAgent)**: `ContextManagedAgent` keeps the full message history in `conversation` (for UI) but sends a compressed context to the API. When `promptTokens` of the last response exceeds 1 500, it calls the LLM to generate/update a summary of all messages not yet covered by an existing summary, then sets `summaryMessageCount` to the total count. Subsequent API calls send: system prompt + summary pseudo-turn (`user`/`assistant` pair) + only messages from `summaryMessageCount` onwards. Summary text and `summaryMessageCount` are persisted to `AgentState/context_managed_agent_summary.json` alongside the normal conversation JSON. The cost of summary generation is tracked via `MessageRole.summaryUsage` messages (empty content, token counts only) appended to `conversation`; `ChatView` filters them from display but `ChatViewModel` includes them in cost totals.
+**Context Compression Policy**: Defined in `Domain/Protocols/ContextCompressionPolicy.swift` as a class-only protocol:
+
+```swift
+protocol ContextCompressionPolicy: AnyObject {
+    func compress(_ conversation: Conversation) async -> (apiConversation: Conversation, summaryUsage: UsageInfo?)
+    func reset()
+}
+```
+
+`compress(_:)` принимает полный Conversation агента, возвращает сжатый контекст для LLM и опциональный `UsageInfo` токенов, потраченных на генерацию summary. Агент сам создаёт из `UsageInfo` сообщение `MessageRole.summaryUsage` и добавляет его в свой `conversation`. `reset()` вызывается агентом при `clearConversation()`.
+
+**`SummaryContextCompressionPolicy`** (`Domain/Agents/SummaryContextCompressionPolicy.swift`) — реализация на основе summary. Принимает `sendMessage: any SendMessageToLMMUseCase` для собственных LLM-вызовов, `summaryTriggerTokens` (по умолчанию 1 500) и `persistenceKey`. При вызове `compress(_:)`:
+1. Проверяет `promptTokens` последнего assistant-сообщения; если превышен порог — вызывает LLM для генерации/обновления summary по несжатым сообщениям.
+2. Строит API-контекст: system + summary pseudo-turn (`user`/`assistant`) + сообщения, начиная с `summaryMessageCount`.
+3. Возвращает сжатый Conversation и `UsageInfo` (или `nil`, если summary не генерировался).
+
+Summary-состояние (`text` + `messageCount`) персистируется в `AgentState/<persistenceKey>_summary.json`.
+
+**Context Management (ContextManagedAgent)**: Хранит полную историю в `conversation` (для UI), перед каждым запросом вызывает `compressionPolicy?.compress(conversation)`. Если политика вернула `UsageInfo` — агент сам добавляет `Message(role: .summaryUsage, content: "", ...)` в `conversation`. `ChatView` фильтрует `.summaryUsage` из отображения, `ChatViewModel` включает их токены в итоговую стоимость. `ContextCompressionPolicy` передаётся в `init` опционально; без политики агент отправляет полный контекст.
 
 **Response Time**: `Message.responseTime: TimeInterval?` is set in `SendMessageUseCase` as `Date().timeIntervalSince(startTime)` covering the entire round-trip (including tool calls). Displayed in `MessageRow` as "X.X с".
 
