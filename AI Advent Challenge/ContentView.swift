@@ -93,7 +93,8 @@ struct ContentView: View {
                 NavigationStack {
                     SettingsView(
                         viewModel: container.makeSettingsViewModel(),
-                        modelStore: container.modelStore
+                        modelStore: container.modelStore,
+                        longTermMemoryStore: container.longTermMemoryStore
                     )
                 }
             }

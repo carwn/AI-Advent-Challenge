@@ -40,6 +40,7 @@ final class DependencyContainer: ObservableObject {
     // Presentation Layer
     lazy var messageHistoryStore = MessageHistoryStore()
     let modelStore = ModelStore()
+    lazy var longTermMemoryStore = LongTermMemoryStore(agentKey: "triple_memory_agent")
 
     private var cancellables = Set<AnyCancellable>()
 
@@ -85,6 +86,11 @@ final class DependencyContainer: ObservableObject {
                           icon: "tag.fill",
                           description: "Факты + последние \(StickyFactsCompressionPolicy.defaultWindowSize) сообщений в API",
                           compressionPolicyDescription: "Факты + последние \(StickyFactsCompressionPolicy.defaultWindowSize) сообщений"),
+            AgentTemplate(id: "triple_memory_agent",
+                          name: "Агент с тройной памятью",
+                          icon: "brain.filled.head.profile",
+                          description: "Долговременная (Settings) + рабочая + последние \(TripleMemoryCompressionPolicy.defaultWindowSize) сообщений",
+                          compressionPolicyDescription: "3 уровня памяти (долгосрочная + рабочая + окно)"),
         ]
     }
 
@@ -132,6 +138,18 @@ final class DependencyContainer: ObservableObject {
                     persistenceKey: id.uuidString
                 )
             )
+        case "triple_memory_agent":
+            return TripleMemoryAgent(
+                sendMessage: useCase,
+                persistence: conversationPersistence,
+                conversationId: id,
+                compressionPolicy: TripleMemoryCompressionPolicy(
+                    sendMessage: useCase,
+                    windowSize: TripleMemoryCompressionPolicy.defaultWindowSize,
+                    persistenceKey: id.uuidString,
+                    longTermMemory: longTermMemoryStore
+                )
+            )
         default:
             return GeneralAgent(sendMessage: useCase, persistence: conversationPersistence, conversationId: id)
         }
@@ -165,6 +183,6 @@ final class DependencyContainer: ObservableObject {
     }
 
     func makeSettingsViewModel() -> SettingsViewModel {
-        SettingsViewModel(apiKeyManager: apiKeyManager)
+        SettingsViewModel(apiKeyManager: apiKeyManager, longTermMemoryStore: longTermMemoryStore)
     }
 }

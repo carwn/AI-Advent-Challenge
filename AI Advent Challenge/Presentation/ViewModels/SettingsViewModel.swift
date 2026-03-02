@@ -12,12 +12,15 @@ import Combine
 final class SettingsViewModel: ObservableObject {
     @Published var openAIKey: String = ""
     @Published var showingSaveSuccess: Bool = false
+    @Published var showingMemorySaveSuccess: Bool = false
     @Published var error: String?
 
     private let apiKeyManager: APIKeyManager
+    let longTermMemoryStore: LongTermMemoryStore
 
-    init(apiKeyManager: APIKeyManager) {
+    init(apiKeyManager: APIKeyManager, longTermMemoryStore: LongTermMemoryStore) {
         self.apiKeyManager = apiKeyManager
+        self.longTermMemoryStore = longTermMemoryStore
         loadAPIKey()
     }
 
@@ -54,5 +57,10 @@ final class SettingsViewModel: ObservableObject {
         } catch {
             self.error = error.localizedDescription
         }
+    }
+
+    func saveLongTermMemory() {
+        longTermMemoryStore.save()
+        showingMemorySaveSuccess = true
     }
 }

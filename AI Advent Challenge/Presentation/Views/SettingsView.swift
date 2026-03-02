@@ -10,6 +10,7 @@ import SwiftUI
 struct SettingsView: View {
     @StateObject var viewModel: SettingsViewModel
     @ObservedObject var modelStore: ModelStore
+    @ObservedObject var longTermMemoryStore: LongTermMemoryStore
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -71,6 +72,26 @@ struct SettingsView: View {
                 }
             }
 
+            Section {
+                TextEditor(text: $longTermMemoryStore.text)
+                    .frame(minHeight: 140)
+
+                Button("Сохранить") {
+                    viewModel.saveLongTermMemory()
+                }
+
+                Button("Очистить", role: .destructive) {
+                    longTermMemoryStore.text = ""
+                    longTermMemoryStore.save()
+                }
+                .disabled(longTermMemoryStore.text.isEmpty)
+            } header: {
+                Text("Долговременная память")
+            } footer: {
+                Text("Текст доступен агенту «Тройная память» в каждом разговоре.")
+                    .font(.caption)
+            }
+
             if let error = viewModel.error {
                 Section {
                     Text(error)
@@ -83,6 +104,11 @@ struct SettingsView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text("API-ключ сохранён")
+        }
+        .alert("Сохранено", isPresented: $viewModel.showingMemorySaveSuccess) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Долговременная память обновлена")
         }
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {

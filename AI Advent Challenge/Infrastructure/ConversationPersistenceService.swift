@@ -55,7 +55,7 @@ final class ConversationPersistenceService {
     }
 
     func copyPolicyCaches(from sourceKey: String, to destinationKey: String) {
-        for suffix in ["_summary", "_facts"] {
+        for suffix in ["_summary", "_facts", "_working"] {
             let src = baseURL.appendingPathComponent("\(sourceKey)\(suffix).json")
             let dst = baseURL.appendingPathComponent("\(destinationKey)\(suffix).json")
             guard FileManager.default.fileExists(atPath: src.path) else { continue }

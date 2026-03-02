@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**AI Advent Challenge** is an iOS SwiftUI app that lets users chat with AI agents powered by multiple LLM providers (OpenAI, Anthropic, Google Gemini) via ProxyAPI.ru. Users can create multiple named conversations, each tied to one of 6 specialized agents, switch between 10 LLM models, and agents can call tools (weather, calculator, search) as part of their responses. Conversations can be branched, creating a tree of forked chats.
+**AI Advent Challenge** is an iOS SwiftUI app that lets users chat with AI agents powered by multiple LLM providers (OpenAI, Anthropic, Google Gemini) via ProxyAPI.ru. Users can create multiple named conversations, each tied to one of 7 specialized agents, switch between 10 LLM models, and agents can call tools (weather, calculator, search) as part of their responses. Conversations can be branched, creating a tree of forked chats.
 
 ## Git
 
@@ -50,10 +50,13 @@ Domain/
                    ToolDefinition, LLMMessage, LLMResponse
   Protocols/     — Agent, LLMProvider, ToolExecutor, ContextCompressionPolicy
   Agents/        — SendMessageToLMMUseCase (protocol), SendMessageToLMMInteractor,
-                   BaseAgent (base class), 6 concrete agent classes,
+                   BaseAgent (base class), 7 concrete agent classes,
                    SummaryContextCompressionPolicy,
                    SlidingWindowContextCompressionPolicy,
-                   StickyFactsCompressionPolicy
+                   StickyFactsCompressionPolicy,
+                   TripleMemoryCompressionPolicy,
+                   KeyValueMemoryExtractor (shared LLM key-value extraction),
+                   LongTermMemoryStore (ObservableObject, shared per-agent-type)
   UseCases/      — BranchConversationUseCase
 
 Data/
@@ -132,6 +135,7 @@ Each agent is a `final class` in `Domain/Agents/`, inheriting from `BaseAgent`. 
 | `ContextManagedAgent` | Агент с памятью | memorychip | — | — | — | SummaryContextCompressionPolicy |
 | `SlidingWindowAgent` | Агент скользящего окна | rectangle.3.offgrid | — | — | — | SlidingWindowContextCompressionPolicy (window=5) |
 | `StickyFactsAgent` | Агент с фактами | tag.fill | — | — | — | StickyFactsCompressionPolicy (window=5) |
+| `TripleMemoryAgent` | Агент с тройной памятью | brain.filled.head.profile | — | — | — | TripleMemoryCompressionPolicy (window=5) |
 
 _(— means BaseAgent default: temperature 0.7, maxTokens 1000, stopWords nil, availableTools [])_
 
@@ -226,12 +230,13 @@ struct ConversationRecord: Identifiable, Codable {
 **`BranchConversationUseCase`** (`Domain/UseCases/`) creates a branched conversation from an existing one: copies the conversation data and any compression policy caches, assigns a new `UUID`, sets `parentId`, and prefixes the title with "↳".
 
 **`DependencyContainer`** key methods:
-- `agentTemplates: [AgentTemplate]` — returns the 6 available agent templates
+- `agentTemplates: [AgentTemplate]` — returns the 7 available agent templates
 - `createConversation(agentKey:)` — creates a new `ConversationRecord` and saves it to the index
 - `makeAgent(record: ConversationRecord)` — instantiates an agent with the given conversation ID
 - `makeChatViewModel(agent:)` — wraps an agent in a `ChatViewModel`
 - `makeAgentSelectionViewModel()` — for the agent selection UI
 - `makeSettingsViewModel()` — for the settings UI
+- `longTermMemoryStore` — shared `LongTermMemoryStore` instance for `TripleMemoryAgent`
 
 ## Persistence
 
@@ -243,7 +248,12 @@ struct ConversationRecord: Identifiable, Codable {
 **Compression policy caches** (keyed by `conversationId`):
 - Summary: `AgentState/<conversationId>_summary.json` (text + messageCount)
 - Facts: `AgentState/<conversationId>_facts.json` (key-value dict + messageCount)
-- Both files are copied when branching a conversation
+- Working memory: `AgentState/<conversationId>_working.json` (key-value dict + messageCount)
+- All three files are copied when branching a conversation
+
+**Long-term memory** — `AgentState/long_term_memory_triple_memory_agent.txt`
+- Free-form text edited by the user in Settings → «Долговременная память»
+- Shared across all conversations of `TripleMemoryAgent`; never reset by `clearConversation()`
 
 **Conversation index** — `AgentState/conversations_index.json`
 - Array of `ConversationRecord`; updated after each message (title, preview, date)
@@ -285,16 +295,66 @@ Summary state (`text` + `messageCount`) persisted to `AgentState/<conversationId
 
 `Domain/Agents/SlidingWindowContextCompressionPolicy.swift` — keeps only the last N non-system messages in the API context. Default window size: 5. Stateless — no persistence. `details` reports "история: последние X сообщений, отброшено Y" when messages are dropped.
 
+### KeyValueMemoryExtractor
+
+`Domain/Agents/KeyValueMemoryExtractor.swift` — shared helper encapsulating the full LLM key-value extraction cycle. Used by both `StickyFactsCompressionPolicy` and `TripleMemoryCompressionPolicy`.
+
+```swift
+final class KeyValueMemoryExtractor {
+    private(set) var entries: [String: String]
+    private(set) var processedMessageCount: Int
+
+    init(
+        sendMessage: any SendMessageToLMMUseCase,
+        extractionSystemPrompt: String,   // parametrized per use case
+        persistenceKey: String,           // file saved as AgentState/<key>.json
+        useLargerValueMerge: Bool = true  // true: keep longer value (StickyFacts); false: always replace (WorkingMemory)
+    )
+
+    func update(from conversation: Conversation) async -> UsageInfo?
+    func reset()
+}
+```
+
+On `update(from:)`:
+1. Finds messages not yet processed (`dropFirst(processedMessageCount)`), filtered to user/assistant.
+2. Calls LLM with existing entries + new dialog text; expects flat JSON response.
+3. Merges result into `entries`: with `useLargerValueMerge=true` keeps longer value (prevents truncation of accumulated lists); with `false` always replaces (correct for task-focused working memory).
+4. Updates `processedMessageCount` and persists state on successful JSON parse.
+
 ### StickyFactsCompressionPolicy
 
 `Domain/Agents/StickyFactsCompressionPolicy.swift` — extracts key-value facts (goals, preferences, decisions, constraints) via LLM and injects them into every API call.
 
-Takes `sendMessage`, window size (default 5 messages), and `conversationId`. On `compress(_:)`:
-1. Extracts/updates structured facts from new messages via LLM.
-2. Smart-merges: keeps the longer value when updating a fact (prevents truncation).
-3. Builds API context: system + facts pseudo-turn (`user`/`assistant`) + last N messages.
+Takes `sendMessage`, window size (default 5 messages), and `persistenceKey`. Internally uses `KeyValueMemoryExtractor` with `useLargerValueMerge: true`. On `compress(_:)`:
+1. Calls `extractor.update(from:)` if new messages exist.
+2. Builds API context: system + facts pseudo-turn (`user`/`assistant`) + last N messages.
 
-Facts state (`key-value dict` + `messageCount`) persisted to `AgentState/<conversationId>_facts.json`.
+Facts state persisted to `AgentState/<conversationId>_facts.json`.
+
+### TripleMemoryCompressionPolicy
+
+`Domain/Agents/TripleMemoryCompressionPolicy.swift` — combines three memory tiers in a single policy.
+
+```
+API context sent to LLM:
+[system: agent system prompt]
+[user:  "Долговременная память:\n{free-form text}"]  ← only if non-empty
+[assistant: "Принял к сведению."]
+[user:  "Рабочая память:\n{- key: value ...}"]        ← only if non-empty
+[assistant: "Принял к сведению."]
+[last windowSize messages]                             ← short-term
+```
+
+- **Short-term** — sliding window of last N messages (default 5)
+- **Working** — `KeyValueMemoryExtractor` with `useLargerValueMerge: false`; task-focused key-value pairs extracted every round; persisted to `AgentState/<conversationId>_working.json`
+- **Long-term** — `LongTermMemoryStore`; free-form text managed by user in Settings; shared across all conversations of this agent
+
+`reset()` clears only working memory; long-term memory is user-managed and persists.
+
+### LongTermMemoryStore
+
+`Domain/Agents/LongTermMemoryStore.swift` — `ObservableObject` shared via `DependencyContainer`. Persists free-form text to `AgentState/long_term_memory_<agentKey>.txt`. Exposes `@Published var text` (bound to `TextEditor` in Settings) and a synchronous `currentText()` reader for the compression policy.
 
 ## Tool System
 
@@ -329,6 +389,15 @@ Facts state (`key-value dict` + `messageCount`) persisted to `AgentState/<conver
 
 **Message History**: `MessageHistoryStore` stores the last 10 sent messages in `UserDefaults`. `ChatView` shows them as chips above the input field — tap to fill input, ✕ to delete.
 
+## Settings
+
+`SettingsView` + `SettingsViewModel` contain three sections:
+1. **LLM Провайдер** — model selection (dismisses sheet on tap)
+2. **Настройка ProxyAPI.ru** — API key management (Keychain)
+3. **Долговременная память** — `TextEditor` bound to `LongTermMemoryStore.text`; «Сохранить» / «Очистить» buttons; available only to `TripleMemoryAgent`
+
+`SettingsViewModel` holds a reference to `LongTermMemoryStore` (injected via `DependencyContainer.makeSettingsViewModel()`). `ContentView` passes `container.longTermMemoryStore` to `SettingsView`.
+
 ## Adding a New Agent
 
 1. Create `Domain/Agents/MyAgent.swift` as `final class MyAgent: BaseAgent`.
@@ -346,6 +415,7 @@ Facts state (`key-value dict` + `messageCount`) persisted to `AgentState/<conver
    If the agent uses context compression, construct the policy inside `init` and pass it to `super.init(compressionPolicy:)`.
 5. Register the agent in `DependencyContainer.agentTemplates` and handle its `agentKey` in `makeAgent(record:)`.
 6. If the agent needs a new tool: implement it in `DefaultToolExecutor`, add its `ToolDefinition` factory in `ToolDefinition.swift`, and register it in `canExecute(toolName:)`.
+7. If the agent needs shared long-term memory: add a `LongTermMemoryStore` property to `DependencyContainer` and inject it into the compression policy.
 
 ## Adding a New LLM Provider
 
