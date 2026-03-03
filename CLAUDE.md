@@ -4,11 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**AI Advent Challenge** is an iOS SwiftUI app that lets users chat with AI agents powered by multiple LLM providers (OpenAI, Anthropic, Google Gemini) via ProxyAPI.ru. Users can create multiple named conversations, each tied to one of 7 specialized agents, switch between 10 LLM models, and agents can call tools (weather, calculator, search) as part of their responses. Conversations can be branched, creating a tree of forked chats.
+**AI Advent Challenge** is an iOS SwiftUI app that lets users chat with AI agents powered by multiple LLM providers (OpenAI, Anthropic, Google Gemini) via ProxyAPI.ru. Users can create multiple named conversations, each tied to one of 8 specialized agents, switch between 10 LLM models, and agents can call tools (weather, calculator, search) as part of their responses. Conversations can be branched, creating a tree of forked chats.
 
 ## Git
 
-Never commit changes automatically. Always show a summary of what will be committed and wait for explicit user confirmation before running `git commit`.
+When the user explicitly asks to make a commit:
+1. Run `git diff HEAD` to inspect all staged and unstaged changes.
+2. Update this CLAUDE.md file to reflect any architectural, behavioral, or structural changes introduced by those changes (new agents, new policies, new files, changed patterns, etc.).
+3. Run `git commit` immediately — do not ask for additional confirmation. Show a summary of what will be committed, but proceed without waiting for approval.
 
 ## Build & Run
 
@@ -50,7 +53,7 @@ Domain/
                    ToolDefinition, LLMMessage, LLMResponse
   Protocols/     — Agent, LLMProvider, ToolExecutor, ContextCompressionPolicy
   Agents/        — SendMessageToLMMUseCase (protocol), SendMessageToLMMInteractor,
-                   BaseAgent (base class), 7 concrete agent classes,
+                   BaseAgent (base class), 8 concrete agent classes,
                    SummaryContextCompressionPolicy,
                    SlidingWindowContextCompressionPolicy,
                    StickyFactsCompressionPolicy,
@@ -136,10 +139,13 @@ Each agent is a `final class` in `Domain/Agents/`, inheriting from `BaseAgent`. 
 | `SlidingWindowAgent` | Агент скользящего окна | rectangle.3.offgrid | — | — | — | SlidingWindowContextCompressionPolicy (window=5) |
 | `StickyFactsAgent` | Агент с фактами | tag.fill | — | — | — | StickyFactsCompressionPolicy (window=5) |
 | `TripleMemoryAgent` | Агент с тройной памятью | brain.filled.head.profile | — | — | — | TripleMemoryCompressionPolicy (window=5) |
+| `UserProfileAgent` | Профайлер | person.text.rectangle.fill | **0.2** | **500** | — | None |
 
 _(— means BaseAgent default: temperature 0.7, maxTokens 1000, stopWords nil, availableTools [])_
 
 `WeatherJSONAgent` has a detailed system prompt requiring JSON-only output with specific fields (location, temperature, condition, humidity, summary).
+
+`UserProfileAgent` implements a three-phase profiling cycle: (1) **profiling** — asks 5 questions (response style, format, constraints, expertise, language), validating each answer via LLM; (2) **editing** — detects intent to edit the profile and re-enters profiling; (3) **chat** — normal conversation using the collected profile. Profile state is persisted to `AgentState/<conversationId>_profile.json`. On completion, the profile is saved to the shared `LongTermMemoryStore` of `TripleMemoryAgent` so it can be used by that agent.
 
 ## SendMessageUseCase
 
@@ -230,7 +236,7 @@ struct ConversationRecord: Identifiable, Codable {
 **`BranchConversationUseCase`** (`Domain/UseCases/`) creates a branched conversation from an existing one: copies the conversation data and any compression policy caches, assigns a new `UUID`, sets `parentId`, and prefixes the title with "↳".
 
 **`DependencyContainer`** key methods:
-- `agentTemplates: [AgentTemplate]` — returns the 7 available agent templates
+- `agentTemplates: [AgentTemplate]` — returns the 8 available agent templates
 - `createConversation(agentKey:)` — creates a new `ConversationRecord` and saves it to the index
 - `makeAgent(record: ConversationRecord)` — instantiates an agent with the given conversation ID
 - `makeChatViewModel(agent:)` — wraps an agent in a `ChatViewModel`
@@ -249,7 +255,8 @@ struct ConversationRecord: Identifiable, Codable {
 - Summary: `AgentState/<conversationId>_summary.json` (text + messageCount)
 - Facts: `AgentState/<conversationId>_facts.json` (key-value dict + messageCount)
 - Working memory: `AgentState/<conversationId>_working.json` (key-value dict + messageCount)
-- All three files are copied when branching a conversation
+- Profile: `AgentState/<conversationId>_profile.json` (UserProfileAgent profiling state)
+- All files are copied when branching a conversation
 
 **Long-term memory** — `AgentState/long_term_memory_triple_memory_agent.txt`
 - Free-form text edited by the user in Settings → «Долговременная память»
@@ -338,9 +345,7 @@ Facts state persisted to `AgentState/<conversationId>_facts.json`.
 
 ```
 API context sent to LLM:
-[system: agent system prompt]
-[user:  "Долговременная память:\n{free-form text}"]  ← only if non-empty
-[assistant: "Принял к сведению."]
+[system: agent system prompt + "\n\nДолговременная память:\n{free-form text}"]  ← long-term embedded in system prompt
 [user:  "Рабочая память:\n{- key: value ...}"]        ← only if non-empty
 [assistant: "Принял к сведению."]
 [last windowSize messages]                             ← short-term
@@ -397,6 +402,8 @@ API context sent to LLM:
 3. **Долговременная память** — `TextEditor` bound to `LongTermMemoryStore.text`; «Сохранить» / «Очистить» buttons; available only to `TripleMemoryAgent`
 
 `SettingsViewModel` holds a reference to `LongTermMemoryStore` (injected via `DependencyContainer.makeSettingsViewModel()`). `ContentView` passes `container.longTermMemoryStore` to `SettingsView`.
+
+**«Очистить все данные»** — a fourth "Danger Zone" section with a button that calls `viewModel.clearAllData()`. This deletes all persisted conversation data via `ConversationPersistenceService.deleteAllData()` and resets `LongTermMemoryStore.text` to `""`. A confirmation alert is shown before proceeding.
 
 ## Adding a New Agent
 
