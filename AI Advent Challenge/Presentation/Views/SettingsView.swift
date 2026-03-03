@@ -12,6 +12,9 @@ struct SettingsView: View {
     @ObservedObject var modelStore: ModelStore
     @ObservedObject var longTermMemoryStore: LongTermMemoryStore
     @Environment(\.dismiss) private var dismiss
+    var onAllDataCleared: (() -> Void)?
+
+    @State private var showingClearAllAlert = false
 
     var body: some View {
         Form {
@@ -92,6 +95,17 @@ struct SettingsView: View {
                     .font(.caption)
             }
 
+            Section {
+                Button("Очистить все данные", role: .destructive) {
+                    showingClearAllAlert = true
+                }
+            } header: {
+                Text("Опасная зона")
+            } footer: {
+                Text("Удаляет все диалоги, кэши политик сжатия и долговременную память.")
+                    .font(.caption)
+            }
+
             if let error = viewModel.error {
                 Section {
                     Text(error)
@@ -100,6 +114,16 @@ struct SettingsView: View {
             }
         }
         .navigationTitle("Настройки")
+        .alert("Очистить все данные?", isPresented: $showingClearAllAlert) {
+            Button("Очистить", role: .destructive) {
+                viewModel.clearAllData()
+                dismiss()
+                onAllDataCleared?()
+            }
+            Button("Отмена", role: .cancel) { }
+        } message: {
+            Text("Все диалоги и кэши будут безвозвратно удалены.")
+        }
         .alert("Готово", isPresented: $viewModel.showingSaveSuccess) {
             Button("OK", role: .cancel) { }
         } message: {

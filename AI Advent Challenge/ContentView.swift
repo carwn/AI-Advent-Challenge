@@ -94,7 +94,12 @@ struct ContentView: View {
                     SettingsView(
                         viewModel: container.makeSettingsViewModel(),
                         modelStore: container.modelStore,
-                        longTermMemoryStore: container.longTermMemoryStore
+                        longTermMemoryStore: container.longTermMemoryStore,
+                        onAllDataCleared: {
+                            isShowingChat = false
+                            chatViewModel = nil
+                            loadRecords()
+                        }
                     )
                 }
             }

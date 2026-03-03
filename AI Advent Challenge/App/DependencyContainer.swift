@@ -195,6 +195,6 @@ final class DependencyContainer: ObservableObject {
     }
 
     func makeSettingsViewModel() -> SettingsViewModel {
-        SettingsViewModel(apiKeyManager: apiKeyManager, longTermMemoryStore: longTermMemoryStore)
+        SettingsViewModel(apiKeyManager: apiKeyManager, longTermMemoryStore: longTermMemoryStore, persistence: conversationPersistence)
     }
 }

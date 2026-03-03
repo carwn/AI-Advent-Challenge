@@ -63,6 +63,11 @@ final class ConversationPersistenceService {
         }
     }
 
+    func deleteAllData() {
+        try? FileManager.default.removeItem(at: baseURL)
+        try? FileManager.default.createDirectory(at: baseURL, withIntermediateDirectories: true)
+    }
+
     private func fileURL(for key: String) -> URL {
         baseURL.appendingPathComponent("\(key).json")
     }

@@ -16,11 +16,13 @@ final class SettingsViewModel: ObservableObject {
     @Published var error: String?
 
     private let apiKeyManager: APIKeyManager
+    private let persistence: ConversationPersistenceService
     let longTermMemoryStore: LongTermMemoryStore
 
-    init(apiKeyManager: APIKeyManager, longTermMemoryStore: LongTermMemoryStore) {
+    init(apiKeyManager: APIKeyManager, longTermMemoryStore: LongTermMemoryStore, persistence: ConversationPersistenceService) {
         self.apiKeyManager = apiKeyManager
         self.longTermMemoryStore = longTermMemoryStore
+        self.persistence = persistence
         loadAPIKey()
     }
 
@@ -62,5 +64,10 @@ final class SettingsViewModel: ObservableObject {
     func saveLongTermMemory() {
         longTermMemoryStore.save()
         showingMemorySaveSuccess = true
+    }
+
+    func clearAllData() {
+        persistence.deleteAllData()
+        longTermMemoryStore.text = ""
     }
 }
