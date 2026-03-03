@@ -93,15 +93,15 @@ final class TripleMemoryCompressionPolicy: ContextCompressionPolicy {
     private func buildAPIConversation(from conversation: Conversation) -> Conversation {
         var msgs: [Message] = []
 
-        if let sys = conversation.messages.first, sys.role == .system {
-            msgs.append(sys)
-        }
-
-        // Долговременная память
+        // System prompt + долговременная память
         let longTermText = longTermMemory.currentText()
-        if !longTermText.isEmpty {
-            msgs.append(Message(role: .user, content: "Долговременная память:\n\(longTermText)"))
-            msgs.append(Message(role: .assistant, content: "Принял к сведению."))
+        if let sys = conversation.messages.first, sys.role == .system {
+            if longTermText.isEmpty {
+                msgs.append(sys)
+            } else {
+                let extended = sys.content + "\n\n---\nДолговременная память:\n\(longTermText)"
+                msgs.append(Message(role: .system, content: extended))
+            }
         }
 
         // Рабочая память
