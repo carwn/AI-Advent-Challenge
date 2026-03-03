@@ -91,6 +91,11 @@ final class DependencyContainer: ObservableObject {
                           icon: "brain.filled.head.profile",
                           description: "Долговременная (Settings) + рабочая + последние \(TripleMemoryCompressionPolicy.defaultWindowSize) сообщений",
                           compressionPolicyDescription: "3 уровня памяти (долгосрочная + рабочая + окно)"),
+            AgentTemplate(id: "user_profile_agent",
+                          name: "Профайлер",
+                          icon: "person.text.rectangle.fill",
+                          description: "Собирает профиль предпочтений и сохраняет в долговременную память",
+                          compressionPolicyDescription: nil),
         ]
     }
 
@@ -149,6 +154,13 @@ final class DependencyContainer: ObservableObject {
                     persistenceKey: id.uuidString,
                     longTermMemory: longTermMemoryStore
                 )
+            )
+        case "user_profile_agent":
+            return UserProfileAgent(
+                sendMessage: useCase,
+                persistence: conversationPersistence,
+                conversationId: id,
+                longTermMemoryStore: longTermMemoryStore
             )
         default:
             return GeneralAgent(sendMessage: useCase, persistence: conversationPersistence, conversationId: id)
