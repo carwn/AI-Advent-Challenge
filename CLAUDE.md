@@ -52,15 +52,15 @@ Domain/
   Models/        — Message, Conversation, ConversationRecord, AgentResponse,
                    ToolDefinition, LLMMessage, LLMResponse
   Protocols/     — Agent, LLMProvider, ToolExecutor, ContextCompressionPolicy
-  Agents/        — SendMessageToLMMUseCase (protocol), SendMessageToLMMInteractor,
-                   BaseAgent (base class), 8 concrete agent classes,
-                   SummaryContextCompressionPolicy,
+  Agents/        — BaseAgent (base class), 8 concrete agent classes
+    Compression/ — SummaryContextCompressionPolicy,
                    SlidingWindowContextCompressionPolicy,
                    StickyFactsCompressionPolicy,
                    TripleMemoryCompressionPolicy,
                    KeyValueMemoryExtractor (shared LLM key-value extraction),
                    LongTermMemoryStore (ObservableObject, shared per-agent-type)
-  UseCases/      — BranchConversationUseCase
+  UseCases/      — SendMessageToLMMUseCase (protocol), SendMessageToLMMInteractor,
+                   BranchConversationUseCase
 
 Data/
   Providers/
@@ -74,7 +74,7 @@ Infrastructure/
                    NetworkError, NetworkLogger (protocol), OSNetworkLogger
   Security/      — KeychainService, APIKeyManager
   Tools/         — DefaultToolExecutor with mock WeatherService, CalculatorService, SearchService
-  ConversationPersistenceService.swift  — save/load/delete Conversation JSON by UUID
+  Persistence/   — ConversationPersistenceService (save/load/delete Conversation JSON by UUID)
 
 Presentation/
   Views/         — ContentView, ChatView, AgentSelectionView, SettingsView, MessageRow
@@ -82,7 +82,8 @@ Presentation/
                    MessageHistoryStore, ModelStore (@MainActor)
 
 App/
-  DependencyContainer.swift  — Manual DI root, @MainActor ObservableObject
+  AI_Advent_ChallengeApp.swift  — App entry point (@main)
+  DependencyContainer.swift     — Manual DI root, @MainActor ObservableObject
 ```
 
 ## Agent Protocol
@@ -149,7 +150,7 @@ _(— means BaseAgent default: temperature 0.7, maxTokens 1000, stopWords nil, a
 
 ## SendMessageUseCase
 
-`Domain/Agents/AgentSending.swift` — use case encapsulating the full LLM request cycle.
+`Domain/UseCases/SendMessageToLMMUseCase.swift` — use case encapsulating the full LLM request cycle.
 
 **Protocol** `SendMessageToLMMUseCase` — two methods:
 ```swift
