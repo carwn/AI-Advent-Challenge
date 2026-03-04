@@ -96,6 +96,11 @@ final class DependencyContainer: ObservableObject {
                           icon: "person.text.rectangle.fill",
                           description: "Собирает профиль предпочтений и сохраняет в долговременную память",
                           compressionPolicyDescription: nil),
+            AgentTemplate(id: "task_state_machine_agent",
+                          name: "Менеджер задач",
+                          icon: "checklist",
+                          description: "Ведёт задачи через фазы: планирование → выполнение → валидация → готово. Поддерживает паузу.",
+                          compressionPolicyDescription: nil),
         ]
     }
 
@@ -161,6 +166,12 @@ final class DependencyContainer: ObservableObject {
                 persistence: conversationPersistence,
                 conversationId: id,
                 longTermMemoryStore: longTermMemoryStore
+            )
+        case "task_state_machine_agent":
+            return TaskStateMachineAgent(
+                sendMessage: useCase,
+                persistence: conversationPersistence,
+                conversationId: id
             )
         default:
             return GeneralAgent(sendMessage: useCase, persistence: conversationPersistence, conversationId: id)

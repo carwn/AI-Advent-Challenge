@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**AI Advent Challenge** is an iOS SwiftUI app that lets users chat with AI agents powered by multiple LLM providers (OpenAI, Anthropic, Google Gemini) via ProxyAPI.ru. Users can create multiple named conversations, each tied to one of 8 specialized agents, switch between 10 LLM models, and agents can call tools (weather, calculator, search) as part of their responses. Conversations can be branched, creating a tree of forked chats.
+**AI Advent Challenge** is an iOS SwiftUI app that lets users chat with AI agents powered by multiple LLM providers (OpenAI, Anthropic, Google Gemini) via ProxyAPI.ru. Users can create multiple named conversations, each tied to one of 9 specialized agents, switch between 10 LLM models, and agents can call tools (weather, calculator, search) as part of their responses. Conversations can be branched, creating a tree of forked chats.
 
 ## Git
 
@@ -141,12 +141,15 @@ Each agent is a `final class` in `Domain/Agents/`, inheriting from `BaseAgent`. 
 | `StickyFactsAgent` | Агент с фактами | tag.fill | — | — | — | StickyFactsCompressionPolicy (window=5) |
 | `TripleMemoryAgent` | Агент с тройной памятью | brain.filled.head.profile | — | — | — | TripleMemoryCompressionPolicy (window=5) |
 | `UserProfileAgent` | Профайлер | person.text.rectangle.fill | **0.2** | **500** | — | None |
+| `TaskStateMachineAgent` | Менеджер задач | checklist | — | — | — | None |
 
 _(— means BaseAgent default: temperature 0.7, maxTokens 1000, stopWords nil, availableTools [])_
 
 `WeatherJSONAgent` has a detailed system prompt requiring JSON-only output with specific fields (location, temperature, condition, humidity, summary).
 
 `UserProfileAgent` implements a three-phase profiling cycle: (1) **profiling** — asks 5 questions (response style, format, constraints, expertise, language), validating each answer via LLM; (2) **editing** — detects intent to edit the profile and re-enters profiling; (3) **chat** — normal conversation using the collected profile. Profile state is persisted to `AgentState/<conversationId>_profile.json`. On completion, the profile is saved to the shared `LongTermMemoryStore` of `TripleMemoryAgent` so it can be used by that agent.
+
+`TaskStateMachineAgent` is a finite state machine that manages user tasks through five phases: `idle → planning → execution → validation → done`. It decomposes tasks into steps via LLM, guides the user step-by-step, supports pause/resume without repeating the full plan, and auto-validates results after the last step. State machine uses `TaskTransition` enum with `canApply()` / `apply()` guards; all mutations immediately call `saveTaskState()`. Phase state is persisted to `AgentState/<conversationId>_task_state.json`. Supports plan revision during planning and re-planning during execution.
 
 ## SendMessageUseCase
 
