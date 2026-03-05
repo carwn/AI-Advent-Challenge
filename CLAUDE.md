@@ -151,6 +151,8 @@ _(— means BaseAgent default: temperature 0.7, maxTokens 1000, stopWords nil, a
 
 `TaskStateMachineAgent` is a finite state machine that manages user tasks through five phases: `idle → planning → execution → validation → done`. It decomposes tasks into steps via LLM, guides the user step-by-step, supports pause/resume without repeating the full plan, and auto-validates results after the last step. State machine uses `TaskTransition` enum with `canApply()` / `apply()` guards; all mutations immediately call `saveTaskState()`. Phase state is persisted to `AgentState/<conversationId>_task_state.json`. Supports plan revision during planning and re-planning during execution.
 
+Supports **invariants** — user-defined constraints enforced across all phases. Invariants are stored in `AgentState/<conversationId>_invariants.json` (not deleted on `clearConversation()`). Commands (any phase): `инвариант: <rule>` adds, `инварианты` lists, `удалить инвариант N` removes, `очистить инварианты` clears all. On `idle` phase: a new task is checked against invariants via LLM before decomposition; conflicting tasks are blocked with an explanation. Invariants are also injected into the `decomposeTask()` system prompt so generated steps comply with them.
+
 ## SendMessageUseCase
 
 `Domain/UseCases/SendMessageToLMMUseCase.swift` — use case encapsulating the full LLM request cycle.

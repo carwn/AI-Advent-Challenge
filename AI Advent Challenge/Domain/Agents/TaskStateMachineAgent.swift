@@ -30,6 +30,11 @@ struct TaskState: Codable {
     var pauseNote: String? = nil
 }
 
+struct Invariant: Codable, Identifiable {
+    var id: UUID = UUID()
+    var text: String
+}
+
 // MARK: - Transitions
 
 private enum TaskTransition {
@@ -49,6 +54,8 @@ final class TaskStateMachineAgent: BaseAgent {
     private let agentConversationId: UUID
     private var taskState: TaskState
     private let taskStateFileURL: URL
+    private var invariants: [Invariant] = []
+    private let invariantsFileURL: URL
 
     // MARK: - Agent metadata
 
@@ -70,6 +77,8 @@ final class TaskStateMachineAgent: BaseAgent {
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         self.taskStateFileURL = appSupport
             .appendingPathComponent("AgentState/\(conversationId.uuidString)_task_state.json")
+        self.invariantsFileURL = appSupport
+            .appendingPathComponent("AgentState/\(conversationId.uuidString)_invariants.json")
 
         let systemPrompt = """
         Ты — менеджер задач, помогающий пользователю достигать целей пошагово. \
@@ -86,6 +95,7 @@ final class TaskStateMachineAgent: BaseAgent {
         )
 
         self.taskState = loadTaskState() ?? TaskState()
+        self.invariants = loadInvariants()
 
         let hasNonSystemMessages = conversation.messages.contains { $0.role != .system }
         if !hasNonSystemMessages {
@@ -96,6 +106,33 @@ final class TaskStateMachineAgent: BaseAgent {
     // MARK: - send
 
     override func send(_ text: String) async throws {
+        // Invariant commands (work in any phase)
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.lowercased() == "инварианты" {
+            appendAndSaveManual(userText: text, assistantText: buildInvariantsList())
+            return
+        }
+        if trimmed.lowercased().hasPrefix("инвариант: ") {
+            let invariantText = String(trimmed.dropFirst("инвариант: ".count))
+            invariants.append(Invariant(text: invariantText))
+            saveInvariants()
+            appendAndSaveManual(userText: text, assistantText: "✅ Инвариант добавлен: «\(invariantText)»\n\nВсего инвариантов: \(invariants.count).")
+            return
+        }
+        if trimmed.lowercased().hasPrefix("удалить инвариант "),
+           let n = Int(trimmed.dropFirst("удалить инвариант ".count)), n >= 1, n <= invariants.count {
+            let removed = invariants.remove(at: n - 1)
+            saveInvariants()
+            appendAndSaveManual(userText: text, assistantText: "🗑️ Инвариант удалён: «\(removed.text)».")
+            return
+        }
+        if trimmed.lowercased() == "очистить инварианты" {
+            invariants.removeAll()
+            saveInvariants()
+            appendAndSaveManual(userText: text, assistantText: "🗑️ Все инварианты очищены.")
+            return
+        }
+
         // Quick keyword check: block pause in non-execution phases
         let lowerText = text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
         let isPauseKeyword = ["пауза", "pause", "стоп", "перерыв"].contains(lowerText)
@@ -188,6 +225,16 @@ final class TaskStateMachineAgent: BaseAgent {
     // MARK: - Phase handlers
 
     private func handleIdlePhase(_ text: String) async throws {
+        if !invariants.isEmpty {
+            if let violation = await checkInvariantViolation(text) {
+                appendAndSaveManual(
+                    userText: text,
+                    assistantText: "⛔ Задача нарушает инвариант.\n\n\(violation)\n\nПредложи другую задачу или скорректируй инварианты."
+                )
+                return
+            }
+        }
+
         let steps = await decomposeTask(text)
         guard !steps.isEmpty else {
             appendAndSaveManual(
@@ -384,7 +431,7 @@ final class TaskStateMachineAgent: BaseAgent {
         } else {
             userMessage = text
         }
-        let system = """
+        var system = """
         Разбей задачу на 3-6 конкретных выполнимых шагов.
         Ответь ТОЛЬКО валидным JSON массивом без markdown и пояснений:
         [{"title":"...","description":"...","expectedAction":"..."}]
@@ -392,6 +439,13 @@ final class TaskStateMachineAgent: BaseAgent {
         description: что делается на этом шаге (1-2 предложения)
         expectedAction: конкретное действие пользователя (1 предложение)
         """
+        if !invariants.isEmpty {
+            system += "\n\nОБЯЗАТЕЛЬНЫЕ ИНВАРИАНТЫ (нельзя нарушать):\n"
+            system += invariants.enumerated()
+                .map { "\($0.offset + 1). \($0.element.text)" }
+                .joined(separator: "\n")
+            system += "\nВсе шаги плана должны строго соответствовать инвариантам."
+        }
         let response = try? await sendMessage.execute(
             systemPrompt: system,
             userMessage: userMessage,
@@ -540,6 +594,7 @@ final class TaskStateMachineAgent: BaseAgent {
         Опиши задачу, которую хочешь выполнить — я разобью её на конкретные шаги и проведу через каждый.
 
         Поддерживаю паузу: пиши «пауза» чтобы остановиться, «продолжи» — чтобы возобновить.
+        Поддерживаю инварианты: пиши «инвариант: <правило>» чтобы задать ограничение.
         """
         conversation.addMessage(Message(role: .assistant, content: welcome))
         persistence.save(conversation, forKey: agentConversationId.uuidString)
@@ -563,6 +618,60 @@ final class TaskStateMachineAgent: BaseAgent {
             lastPreview: lastMsg.map { String($0.content.prefix(80)) },
             lastDate: lastMsg?.timestamp
         )
+    }
+
+    // MARK: - Invariant helpers
+
+    private func checkInvariantViolation(_ text: String) async -> String? {
+        let invariantList = invariants.enumerated()
+            .map { "\($0.offset + 1). \($0.element.text)" }
+            .joined(separator: "\n")
+        let system = """
+        Проверь: нарушает ли следующий запрос пользователя хотя бы один из перечисленных инвариантов?
+
+        Инварианты:
+        \(invariantList)
+
+        Ответь строго в формате:
+        VIOLATION: yes
+        REASON: объяснение какой инвариант нарушен и почему (1-2 предложения)
+        или:
+        VIOLATION: no
+        """
+        let response = try? await sendMessage.execute(
+            systemPrompt: system, userMessage: text, tools: [], temperature: 0.0, maxTokens: 100, stopWords: nil
+        )
+        guard let content = response?.message.content else { return nil }
+        guard content.lowercased().contains("violation: yes") else { return nil }
+        let reasonLine = content.components(separatedBy: "\n")
+            .first { $0.lowercased().hasPrefix("reason:") }
+        return reasonLine?
+            .replacingOccurrences(of: "REASON:", with: "")
+            .replacingOccurrences(of: "reason:", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            ?? "Запрос нарушает установленные инварианты."
+    }
+
+    private func buildInvariantsList() -> String {
+        guard !invariants.isEmpty else {
+            return "📋 Инварианты не установлены.\n\nДобавь: «инвариант: <правило>»"
+        }
+        let list = invariants.enumerated()
+            .map { "\($0.offset + 1). \($0.element.text)" }
+            .joined(separator: "\n")
+        return "📋 ИНВАРИАНТЫ (\(invariants.count)):\n\(list)\n\nДобавить: «инвариант: <правило>»\nУдалить: «удалить инвариант N»"
+    }
+
+    private func loadInvariants() -> [Invariant] {
+        guard let data = try? Data(contentsOf: invariantsFileURL),
+              let inv = try? JSONDecoder().decode([Invariant].self, from: data) else { return [] }
+        return inv
+    }
+
+    private func saveInvariants() {
+        if let data = try? JSONEncoder().encode(invariants) {
+            try? data.write(to: invariantsFileURL, options: .atomic)
+        }
     }
 
     // MARK: - Task state persistence
