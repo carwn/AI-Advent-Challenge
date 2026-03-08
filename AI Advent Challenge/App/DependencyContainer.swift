@@ -101,6 +101,11 @@ final class DependencyContainer: ObservableObject {
                           icon: "checklist",
                           description: "Ведёт задачи через фазы: планирование → выполнение → валидация → готово. Поддерживает паузу.",
                           compressionPolicyDescription: nil),
+            AgentTemplate(id: "solver_agent",
+                          name: "Автономный решатель",
+                          icon: "cpu",
+                          description: "Автономно решает задачи: уточняет вопросами, планирует, выполняет каждый шаг через LLM, валидирует результат.",
+                          compressionPolicyDescription: nil),
         ]
     }
 
@@ -172,6 +177,13 @@ final class DependencyContainer: ObservableObject {
                 sendMessage: useCase,
                 persistence: conversationPersistence,
                 conversationId: id
+            )
+        case "solver_agent":
+            return SolverAgent(
+                sendMessage: useCase,
+                persistence: conversationPersistence,
+                conversationId: id,
+                modelName: modelStore.selectedProvider.rawValue
             )
         default:
             return GeneralAgent(sendMessage: useCase, persistence: conversationPersistence, conversationId: id)

@@ -142,12 +142,15 @@ Each agent is a `final class` in `Domain/Agents/`, inheriting from `BaseAgent`. 
 | `TripleMemoryAgent` | Агент с тройной памятью | brain.filled.head.profile | — | — | — | TripleMemoryCompressionPolicy (window=5) |
 | `UserProfileAgent` | Профайлер | person.text.rectangle.fill | **0.2** | **500** | — | None |
 | `TaskStateMachineAgent` | Менеджер задач | checklist | — | — | — | None |
+| `SolverAgent` | Автономный решатель | cpu | — | — | — | None |
 
 _(— means BaseAgent default: temperature 0.7, maxTokens 1000, stopWords nil, availableTools [])_
 
 `WeatherJSONAgent` has a detailed system prompt requiring JSON-only output with specific fields (location, temperature, condition, humidity, summary).
 
 `UserProfileAgent` implements a three-phase profiling cycle: (1) **profiling** — asks 5 questions (response style, format, constraints, expertise, language), validating each answer via LLM; (2) **editing** — detects intent to edit the profile and re-enters profiling; (3) **chat** — normal conversation using the collected profile. Profile state is persisted to `AgentState/<conversationId>_profile.json`. On completion, the profile is saved to the shared `LongTermMemoryStore` of `TripleMemoryAgent` so it can be used by that agent.
+
+`SolverAgent` is an autonomous task solver that executes tasks through a chain of LLM calls. Phases: `awaitingTask → clarifying → gatheringAnswers → analyzing → confirmingPlan → executing → validating → done`. On confirm, it autonomously executes all steps in one `send()` call, showing internal LLM calls as `.summaryUsage` messages with "⚙️" prefix. Validates results and retries from a failed step (up to 3 global failures). Invariants persisted to `AgentState/<conversationId>_solver_invariants.json` (not deleted on `clearConversation()`). State persisted to `AgentState/<conversationId>_solver_state.json`.
 
 `TaskStateMachineAgent` is a finite state machine that manages user tasks through five phases: `idle → planning → execution → validation → done`. It decomposes tasks into steps via LLM, guides the user step-by-step, supports pause/resume without repeating the full plan, and auto-validates results after the last step. State machine uses `TaskTransition` enum with `canApply()` / `apply()` guards; all mutations immediately call `saveTaskState()`. Phase state is persisted to `AgentState/<conversationId>_task_state.json`. Supports plan revision during planning and re-planning during execution.
 
@@ -408,6 +411,8 @@ API context sent to LLM:
 3. **Долговременная память** — `TextEditor` bound to `LongTermMemoryStore.text`; «Сохранить» / «Очистить» buttons; available only to `TripleMemoryAgent`
 
 `SettingsViewModel` holds a reference to `LongTermMemoryStore` (injected via `DependencyContainer.makeSettingsViewModel()`). `ContentView` passes `container.longTermMemoryStore` to `SettingsView`.
+
+**Internal ⚙️ messages** — `SolverAgent` creates `.summaryUsage` messages with content starting with "⚙️". `MessageRow` detects these via `isInternalMessage` computed property: shows the content as the label (instead of "сжатие"), hides the gray content block, and uses a `gearshape` icon instead of `arrow.triangle.2.circlepath`.
 
 **«Очистить все данные»** — a fourth "Danger Zone" section with a button that calls `viewModel.clearAllData()`. This deletes all persisted conversation data via `ConversationPersistenceService.deleteAllData()` and resets `LongTermMemoryStore.text` to `""`. A confirmation alert is shown before proceeding.
 

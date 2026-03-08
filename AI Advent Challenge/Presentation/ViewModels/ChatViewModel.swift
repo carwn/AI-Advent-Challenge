@@ -47,13 +47,25 @@ final class ChatViewModel: ObservableObject {
         error = nil
 
         Task {
+            // Polling task: updates UI every 150ms while send() is running.
+            // Runs on MainActor and gets control during await suspensions (LLM calls).
+            let pollTask = Task { @MainActor [weak self] in
+                while !Task.isCancelled {
+                    try? await Task.sleep(nanoseconds: 150_000_000)
+                    guard !Task.isCancelled, let self else { break }
+                    self.messages = self.agent.conversation.messages.filter { $0.role != .system }
+                }
+            }
+
             do {
                 try await agent.send(text)
-                messages = agent.conversation.messages.filter { $0.role != .system }
             } catch {
-                messages.removeLast()
                 self.error = error.localizedDescription
+                messages.removeLast()
             }
+
+            pollTask.cancel()
+            messages = agent.conversation.messages.filter { $0.role != .system }
             isLoading = false
         }
     }

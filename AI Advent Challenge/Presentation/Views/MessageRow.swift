@@ -20,17 +20,44 @@ struct MessageRow: View {
 
     // MARK: - Summary Usage Row
 
+    private var isInternalMessage: Bool { message.content.hasPrefix("⚙️") }
+    private var isPhaseMessage: Bool { message.content.hasPrefix("📍") }
+
+    @ViewBuilder
     private var summaryUsageRow: some View {
+        if isPhaseMessage {
+            phaseRow
+        } else {
+            internalOrCompressionRow
+        }
+    }
+
+    private var phaseRow: some View {
+        HStack(spacing: 6) {
+            tealLine
+            Image(systemName: "arrow.forward.circle.fill")
+                .font(.caption2)
+                .foregroundStyle(.teal.opacity(0.8))
+            Text(message.content)
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(.teal)
+                .lineLimit(1)
+            tealLine
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var internalOrCompressionRow: some View {
         VStack(spacing: 4) {
             HStack(spacing: 6) {
                 line
-                Image(systemName: "arrow.triangle.2.circlepath")
+                Image(systemName: isInternalMessage ? "gearshape" : "arrow.triangle.2.circlepath")
                     .font(.caption2)
                     .foregroundStyle(.purple.opacity(0.7))
                 summaryUsageContent
                 line
             }
-            if !message.content.isEmpty {
+            if !message.content.isEmpty && !isInternalMessage {
                 Text(message.content)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -43,15 +70,33 @@ struct MessageRow: View {
             }
         }
         .padding(.vertical, 2)
+        .frame(width: UIScreen.main.bounds.width * 0.85)
     }
 
     private var line: some View {
         VStack { Divider().overlay(Color.purple.opacity(0.3)) }
     }
 
+    private var tealLine: some View {
+        VStack { Divider().overlay(Color.teal.opacity(0.4)) }
+    }
+
     private var summaryUsageContent: some View {
         HStack(spacing: 4) {
-            if let prompt = message.promptTokens, let completion = message.completionTokens {
+            if isInternalMessage {
+                Text(message.content)
+                    .foregroundStyle(.purple.opacity(0.8))
+                if let prompt = message.promptTokens, let completion = message.completionTokens {
+                    Text("↑\(prompt) ↓\(completion)")
+                        .foregroundStyle(.secondary)
+                    if let cost = summaryTotalCostRUB {
+                        Text("·")
+                            .foregroundStyle(.tertiary)
+                        Text("₽\(fmtCost(cost))")
+                            .foregroundStyle(.purple.opacity(0.8))
+                    }
+                }
+            } else if let prompt = message.promptTokens, let completion = message.completionTokens {
                 Text("сжатие")
                     .foregroundStyle(.purple.opacity(0.8))
                 Text("↑\(prompt) ↓\(completion)")
