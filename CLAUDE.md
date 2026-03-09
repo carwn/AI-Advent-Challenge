@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**AI Advent Challenge** is an iOS SwiftUI app that lets users chat with AI agents powered by multiple LLM providers (OpenAI, Anthropic, Google Gemini) via ProxyAPI.ru. Users can create multiple named conversations, each tied to one of 9 specialized agents, switch between 10 LLM models, and agents can call tools (weather, calculator, search) as part of their responses. Conversations can be branched, creating a tree of forked chats.
+**AI Advent Challenge** is an iOS SwiftUI app that lets users chat with AI agents powered by multiple LLM providers (OpenAI, Anthropic, Google Gemini) via ProxyAPI.ru. Users can create multiple named conversations, each tied to one of 10 specialized agents, switch between 10 LLM models, and agents can call tools (weather, calculator, search, Tavily MCP) as part of their responses. Conversations can be branched, creating a tree of forked chats.
 
 ## Git
 
@@ -143,12 +143,15 @@ Each agent is a `final class` in `Domain/Agents/`, inheriting from `BaseAgent`. 
 | `UserProfileAgent` | Профайлер | person.text.rectangle.fill | **0.2** | **500** | — | None |
 | `TaskStateMachineAgent` | Менеджер задач | checklist | — | — | — | None |
 | `SolverAgent` | Автономный решатель | cpu | — | — | — | None |
+| `TavilyMCPAgent` | Tavily MCP | network | **0.2** (dispatch) | **500** (dispatch) | — | None |
 
 _(— means BaseAgent default: temperature 0.7, maxTokens 1000, stopWords nil, availableTools [])_
 
 `WeatherJSONAgent` has a detailed system prompt requiring JSON-only output with specific fields (location, temperature, condition, humidity, summary).
 
 `UserProfileAgent` implements a three-phase profiling cycle: (1) **profiling** — asks 5 questions (response style, format, constraints, expertise, language), validating each answer via LLM; (2) **editing** — detects intent to edit the profile and re-enters profiling; (3) **chat** — normal conversation using the collected profile. Profile state is persisted to `AgentState/<conversationId>_profile.json`. On completion, the profile is saved to the shared `LongTermMemoryStore` of `TripleMemoryAgent` so it can be used by that agent.
+
+`TavilyMCPAgent` connects to the Tavily MCP server (`https://mcp.tavily.com/mcp/?tavilyApiKey=KEY`). Uses a **two-step LLM dispatch scheme**: (1) LLM receives a list of MCP tools + last 5 conversation messages and returns JSON `{"action":"list"|"call"|"chat", ...}`; (2) agent executes the chosen MCP tool via JSON-RPC 2.0, shows `⚙️ summaryUsage` messages for request/response, then calls LLM again with (user question + MCP result) to produce a natural-language answer. Tavily API key stored in Keychain (`com.aiapp.tavily`), managed via Settings → Tavily MCP section. JSON parsing uses balanced-brace extraction + fallback for non-standard `action` values (e.g. tool name used as action).
 
 `SolverAgent` is an autonomous task solver that executes tasks through a chain of LLM calls. Phases: `awaitingTask → clarifying → gatheringAnswers → analyzing → confirmingPlan → executing → validating → done`. On confirm, it autonomously executes all steps in one `send()` call, showing internal LLM calls as `.summaryUsage` messages with "⚙️" prefix. Validates results and retries from a failed step (up to 3 global failures). Invariants persisted to `AgentState/<conversationId>_solver_invariants.json` (not deleted on `clearConversation()`). State persisted to `AgentState/<conversationId>_solver_state.json`.
 
@@ -413,6 +416,12 @@ API context sent to LLM:
 `SettingsViewModel` holds a reference to `LongTermMemoryStore` (injected via `DependencyContainer.makeSettingsViewModel()`). `ContentView` passes `container.longTermMemoryStore` to `SettingsView`.
 
 **Internal ⚙️ messages** — `SolverAgent` creates `.summaryUsage` messages with content starting with "⚙️". `MessageRow` detects these via `isInternalMessage` computed property: shows the content as the label (instead of "сжатие"), hides the gray content block, and uses a `gearshape` icon instead of `arrow.triangle.2.circlepath`.
+
+**Tavily API key** — stored in Keychain under `com.aiapp.tavily`. Added `case tavily` to `APIKeyProvider`. Settings → «Tavily MCP» section with `SecureField`, Save, Delete buttons.
+
+**`MCPClient`** (`Infrastructure/Network/MCPClient.swift`) — URLSession-based JSON-RPC 2.0 client for Tavily MCP. Accepts `apiKey` in init, builds URL with `?tavilyApiKey=` query param. Supports SSE (`Content-Type: text/event-stream`) by parsing first `data:` line. Stores `Mcp-Session-Id`. Calls `initialize` on first use (failures ignored).
+
+**`MCPModels`** (`Infrastructure/Network/MCPModels.swift`) — DTO types: `JSONRPCRequest`, `InitializeParams`, `ToolCallParams`, `JSONObject`, `AnyCodableValue` (recursive enum), `MCPTool` (with raw `[String: AnyCodableValue]?` inputSchema and `parameters()` helper), `MCPToolsListResponse`, `MCPToolCallResponse`, `MCPClientError: LocalizedError`.
 
 **«Очистить все данные»** — a fourth "Danger Zone" section with a button that calls `viewModel.clearAllData()`. This deletes all persisted conversation data via `ConversationPersistenceService.deleteAllData()` and resets `LongTermMemoryStore.text` to `""`. A confirmation alert is shown before proceeding.
 

@@ -96,6 +96,26 @@ struct SettingsView: View {
             }
 
             Section {
+                SecureField("Tavily API-ключ", text: $viewModel.tavilyKey)
+                    .textContentType(.password)
+
+                Button("Сохранить ключ Tavily") {
+                    viewModel.saveTavilyKey()
+                }
+                .disabled(viewModel.tavilyKey.isEmpty)
+
+                Button("Удалить ключ Tavily", role: .destructive) {
+                    viewModel.deleteTavilyKey()
+                }
+                .disabled(viewModel.tavilyKey.isEmpty)
+            } header: {
+                Text("Tavily MCP")
+            } footer: {
+                Text("Ключ используется агентом «Tavily MCP». Получить: https://app.tavily.com")
+                    .font(.caption)
+            }
+
+            Section {
                 Button("Очистить все данные", role: .destructive) {
                     showingClearAllAlert = true
                 }
@@ -133,6 +153,11 @@ struct SettingsView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text("Долговременная память обновлена")
+        }
+        .alert("Готово", isPresented: $viewModel.showingTavilySaveSuccess) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Tavily API-ключ сохранён")
         }
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {

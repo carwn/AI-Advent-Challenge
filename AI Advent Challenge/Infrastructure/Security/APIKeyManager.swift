@@ -9,11 +9,14 @@ import Foundation
 
 enum APIKeyProvider {
     case openAI
+    case tavily
 
     var serviceName: String {
         switch self {
         case .openAI:
             return "com.aiapp.openai"
+        case .tavily:
+            return "com.aiapp.tavily"
         }
     }
 }

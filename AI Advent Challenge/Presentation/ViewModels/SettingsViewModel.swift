@@ -11,8 +11,10 @@ import Combine
 @MainActor
 final class SettingsViewModel: ObservableObject {
     @Published var openAIKey: String = ""
+    @Published var tavilyKey: String = ""
     @Published var showingSaveSuccess: Bool = false
     @Published var showingMemorySaveSuccess: Bool = false
+    @Published var showingTavilySaveSuccess: Bool = false
     @Published var error: String?
 
     private let apiKeyManager: APIKeyManager
@@ -24,6 +26,7 @@ final class SettingsViewModel: ObservableObject {
         self.longTermMemoryStore = longTermMemoryStore
         self.persistence = persistence
         loadAPIKey()
+        loadTavilyKey()
     }
 
     func loadAPIKey() {
@@ -41,7 +44,6 @@ final class SettingsViewModel: ObservableObject {
             error = "API key cannot be empty"
             return
         }
-
         do {
             try apiKeyManager.setAPIKey(openAIKey, for: .openAI)
             showingSaveSuccess = true
@@ -55,6 +57,37 @@ final class SettingsViewModel: ObservableObject {
         do {
             try apiKeyManager.deleteAPIKey(for: .openAI)
             openAIKey = ""
+            error = nil
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    func loadTavilyKey() {
+        do {
+            if let key = try apiKeyManager.getAPIKey(for: .tavily) {
+                tavilyKey = key
+            }
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    func saveTavilyKey() {
+        guard !tavilyKey.isEmpty else { return }
+        do {
+            try apiKeyManager.setAPIKey(tavilyKey, for: .tavily)
+            showingTavilySaveSuccess = true
+            error = nil
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    func deleteTavilyKey() {
+        do {
+            try apiKeyManager.deleteAPIKey(for: .tavily)
+            tavilyKey = ""
             error = nil
         } catch {
             self.error = error.localizedDescription

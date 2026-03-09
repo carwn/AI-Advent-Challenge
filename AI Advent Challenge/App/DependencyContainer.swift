@@ -21,7 +21,7 @@ struct AgentTemplate: Identifiable {
 final class DependencyContainer: ObservableObject {
     // Infrastructure
     private lazy var keychainService = KeychainService()
-    private lazy var apiKeyManager = APIKeyManager(keychainService: keychainService)
+    lazy var apiKeyManager = APIKeyManager(keychainService: keychainService)
     private lazy var networkLogger: NetworkLogger = OSNetworkLogger()
     private lazy var networkClient = NetworkClient(logger: networkLogger)
 
@@ -106,6 +106,11 @@ final class DependencyContainer: ObservableObject {
                           icon: "cpu",
                           description: "Автономно решает задачи: уточняет вопросами, планирует, выполняет каждый шаг через LLM, валидирует результат.",
                           compressionPolicyDescription: nil),
+            AgentTemplate(id: "tavily_mcp_agent",
+                          name: "Tavily MCP",
+                          icon: "network",
+                          description: "Показывает и вызывает инструменты Tavily MCP-сервера",
+                          compressionPolicyDescription: nil),
         ]
     }
 
@@ -184,6 +189,13 @@ final class DependencyContainer: ObservableObject {
                 persistence: conversationPersistence,
                 conversationId: id,
                 modelName: modelStore.selectedProvider.rawValue
+            )
+        case "tavily_mcp_agent":
+            return TavilyMCPAgent(
+                sendMessage: useCase,
+                persistence: conversationPersistence,
+                conversationId: id,
+                apiKeyManager: apiKeyManager
             )
         default:
             return GeneralAgent(sendMessage: useCase, persistence: conversationPersistence, conversationId: id)
