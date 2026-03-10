@@ -109,9 +109,9 @@ struct SettingsView: View {
                 }
                 .disabled(viewModel.tavilyKey.isEmpty)
             } header: {
-                Text("Tavily MCP")
+                Text("MCP серверы")
             } footer: {
-                Text("Ключ используется агентом «Tavily MCP». Получить: https://app.tavily.com")
+                Text("Ключ используется для подключения к Tavily MCP. Carwn MCP не требует авторизации.")
                     .font(.caption)
             }
 

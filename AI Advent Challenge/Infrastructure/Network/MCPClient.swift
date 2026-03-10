@@ -5,39 +5,44 @@
 
 import Foundation
 
-/// HTTP-клиент для Tavily MCP-сервера по протоколу JSON-RPC 2.0 over HTTP+SSE.
+/// HTTP-клиент для MCP-сервера по протоколу JSON-RPC 2.0.
+/// Использует Streamable HTTP транспорт: POST → ответ напрямую в теле или SSE.
 final class MCPClient {
 
-    private let apiKey: String
-    private var sessionId: String?
+    private let baseURL: URL
+    private var streamableSessionId: String?
     private var requestCounter = 0
     private let session: URLSession
 
-    /// URL с tavilyApiKey как query-параметром
-    private var endpointURL: URL {
+    // MARK: - Init
+
+    /// Инициализатор для Tavily: строит URL с ?tavilyApiKey=.
+    init(apiKey: String) {
         var components = URLComponents(string: "https://mcp.tavily.com/mcp/")!
         components.queryItems = [URLQueryItem(name: "tavilyApiKey", value: apiKey)]
-        return components.url!
-    }
-
-    init(apiKey: String) {
-        self.apiKey = apiKey
+        self.baseURL = components.url!
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30
         config.timeoutIntervalForResource = 60
         self.session = URLSession(configuration: config)
     }
 
+    /// Инициализатор для произвольного MCP-сервера.
+    init(url: URL) {
+        self.baseURL = url
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 30
+        config.timeoutIntervalForResource = 120
+        self.session = URLSession(configuration: config)
+    }
+
     // MARK: - Public
 
     func fetchTools() async throws -> [MCPTool] {
-        if sessionId == nil {
-            // initialize может не требоваться — игнорируем ошибки
-            try? await initialize()
-        }
+        if streamableSessionId == nil { try? await initStreamable() }
         let params = ToolsListParams()
         let req = JSONRPCRequest(id: nextId(), method: "tools/list", params: params)
-        let response: MCPToolsListResponse = try await post(body: req)
+        let response: MCPToolsListResponse = try await postStreamable(body: req)
         if let error = response.error {
             throw MCPClientError.serverError(code: error.code, message: error.message)
         }
@@ -45,12 +50,10 @@ final class MCPClient {
     }
 
     func callTool(name: String, arguments: [String: AnyCodableValue]) async throws -> MCPToolCallResponse.ToolCallResult {
-        if sessionId == nil {
-            try? await initialize()
-        }
+        if streamableSessionId == nil { try? await initStreamable() }
         let params = ToolCallParams(name: name, arguments: JSONObject(dict: arguments))
         let req = JSONRPCRequest(id: nextId(), method: "tools/call", params: params)
-        let response: MCPToolCallResponse = try await post(body: req)
+        let response: MCPToolCallResponse = try await postStreamable(body: req)
         if let error = response.error {
             throw MCPClientError.serverError(code: error.code, message: error.message)
         }
@@ -60,49 +63,42 @@ final class MCPClient {
         return result
     }
 
-    // MARK: - Private
+    // MARK: - Streamable HTTP
 
-    private func initialize() async throws {
+    private func initStreamable() async throws {
         let params = InitializeParams(
             protocolVersion: "2024-11-05",
             capabilities: InitializeParams.ClientCapabilities(),
             clientInfo: InitializeParams.ClientInfo(name: "AI-Advent-Challenge", version: "1.0")
         )
         let req = JSONRPCRequest(id: nextId(), method: "initialize", params: params)
-        let response: MCPInitializeResponse = try await post(body: req)
+        let response: MCPInitializeResponse = try await postStreamable(body: req)
         if let error = response.error {
             throw MCPClientError.serverError(code: error.code, message: error.message)
         }
     }
 
-    private func nextId() -> Int {
-        requestCounter += 1
-        return requestCounter
-    }
-
-    private func post<T: Decodable>(body: some Encodable) async throws -> T {
-        var request = URLRequest(url: endpointURL)
+    private func postStreamable<T: Decodable>(body: some Encodable) async throws -> T {
+        var request = URLRequest(url: baseURL)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json, text/event-stream", forHTTPHeaderField: "Accept")
-        if let sid = sessionId {
+        if let sid = streamableSessionId {
             request.setValue(sid, forHTTPHeaderField: "Mcp-Session-Id")
         }
         request.httpBody = try JSONEncoder().encode(body)
 
         let (data, response) = try await session.data(for: request)
 
-        if let httpResponse = response as? HTTPURLResponse {
-            if let sid = httpResponse.value(forHTTPHeaderField: "Mcp-Session-Id") {
-                sessionId = sid
-            }
+        if let http = response as? HTTPURLResponse,
+           let sid = http.value(forHTTPHeaderField: "Mcp-Session-Id") {
+            streamableSessionId = sid
         }
 
-        // Проверяем Content-Type — если SSE, парсим data: строки
         let contentType = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Type") ?? ""
         let jsonData: Data
         if contentType.contains("text/event-stream") {
-            jsonData = try extractSSEData(from: data)
+            jsonData = try extractSSEPayload(from: data)
         } else {
             jsonData = data
         }
@@ -115,8 +111,15 @@ final class MCPClient {
         }
     }
 
-    /// Парсит SSE-поток и извлекает первую `data:` строку с JSON.
-    private func extractSSEData(from data: Data) throws -> Data {
+    // MARK: - Helpers
+
+    private func nextId() -> Int {
+        requestCounter += 1
+        return requestCounter
+    }
+
+    /// Извлекает первую `data:` строку из SSE-ответа.
+    private func extractSSEPayload(from data: Data) throws -> Data {
         guard let text = String(data: data, encoding: .utf8) else {
             throw MCPClientError.unexpectedFormat("SSE: cannot decode as UTF-8")
         }

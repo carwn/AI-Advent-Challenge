@@ -106,10 +106,10 @@ final class DependencyContainer: ObservableObject {
                           icon: "cpu",
                           description: "Автономно решает задачи: уточняет вопросами, планирует, выполняет каждый шаг через LLM, валидирует результат.",
                           compressionPolicyDescription: nil),
-            AgentTemplate(id: "tavily_mcp_agent",
-                          name: "Tavily MCP",
+            AgentTemplate(id: "mcp_agent",
+                          name: "MCP агент",
                           icon: "network",
-                          description: "Показывает и вызывает инструменты Tavily MCP-сервера",
+                          description: "Управляет инструментами нескольких MCP-серверов (Tavily, Carwn)",
                           compressionPolicyDescription: nil),
         ]
     }
@@ -190,8 +190,8 @@ final class DependencyContainer: ObservableObject {
                 conversationId: id,
                 modelName: modelStore.selectedProvider.rawValue
             )
-        case "tavily_mcp_agent":
-            return TavilyMCPAgent(
+        case "mcp_agent":
+            return MCPAgent(
                 sendMessage: useCase,
                 persistence: conversationPersistence,
                 conversationId: id,

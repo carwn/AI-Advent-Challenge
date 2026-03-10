@@ -1,22 +1,29 @@
 //
-//  TavilyMCPAgent.swift
+//  MCPAgent.swift
 //  AI Advent Challenge
 //
 
 import Foundation
 
-/// Агент, подключающийся к Tavily MCP-серверу.
+/// Агент, подключающийся к нескольким MCP-серверам одновременно.
 /// LLM используется как диспетчер: решает, какой инструмент вызвать.
-final class TavilyMCPAgent: BaseAgent {
+final class MCPAgent: BaseAgent {
 
-    private var mcpClient: MCPClient?
-    private var cachedTools: [MCPTool]?
+    private struct MCPServer {
+        let label: String
+        let client: MCPClient
+        var cachedTools: [MCPTool]?
+    }
+
+    private var servers: [MCPServer] = []
+    // Реестр: имя инструмента → (клиент, метка сервера)
+    private var toolRegistry: [String: (client: MCPClient, label: String)] = [:]
     private let agentConversationId: UUID
     private let apiKeyManager: APIKeyManager
 
-    override var name: String        { "Tavily MCP" }
+    override var name: String        { "MCP агент" }
     override var icon: String        { "network" }
-    override var description: String { "Использует инструменты Tavily MCP-сервера" }
+    override var description: String { "Управляет инструментами нескольких MCP-серверов" }
 
     init(
         sendMessage: any SendMessageToLMMUseCase,
@@ -29,9 +36,10 @@ final class TavilyMCPAgent: BaseAgent {
         super.init(
             sendMessage: sendMessage,
             persistence: persistence,
-            systemPrompt: "Ты помощник, управляющий инструментами Tavily MCP-сервера.",
+            systemPrompt: "Ты помощник, управляющий инструментами MCP-серверов.",
             conversationId: conversationId
         )
+        buildServers()
     }
 
     // MARK: - send
@@ -41,31 +49,21 @@ final class TavilyMCPAgent: BaseAgent {
         conversation.addMessage(Message(role: .user, content: text))
         persistence.save(conversation, forKey: agentConversationId.uuidString)
 
-        // 2. Получаем или создаём MCPClient с актуальным ключом
-        let client: MCPClient
-        do {
-            client = try resolvedMCPClient()
-        } catch {
-            appendAssistantMessage(error.localizedDescription)
+        // 2. Получаем инструменты всех серверов
+        let allEntries = await fetchAllTools()
+        if servers.isEmpty {
+            appendAssistantMessage("Нет доступных MCP-серверов. Добавьте Tavily API-ключ в Настройки → MCP серверы.")
             return
         }
 
-        // 3. Получаем список инструментов (с кэшем)
-        let tools: [MCPTool]
-        do {
-            if let cached = cachedTools {
-                tools = cached
-            } else {
-                tools = try await client.fetchTools()
-                cachedTools = tools
-            }
-        } catch {
-            appendAssistantMessage("Не удалось получить список инструментов MCP: \(error.localizedDescription)")
-            return
+        // Обновляем реестр инструментов
+        toolRegistry = [:]
+        for entry in allEntries {
+            toolRegistry[entry.tool.name] = (client: entry.server.client, label: entry.server.label)
         }
 
         // 3. Вызываем LLM как диспетчера
-        let systemPrompt = buildSystemPrompt(tools: tools)
+        let systemPrompt = buildSystemPrompt(entries: allEntries)
         let dispatchResponse: AgentResponse
         do {
             dispatchResponse = try await sendMessage.execute(
@@ -87,10 +85,14 @@ final class TavilyMCPAgent: BaseAgent {
 
         switch action {
         case .list:
-            appendAssistantMessage(formatToolList(tools))
+            appendAssistantMessage(formatToolList(entries: allEntries))
 
         case .call(let toolName, let args):
-            // Показываем запрос к MCP
+            guard let routing = toolRegistry[toolName] else {
+                appendAssistantMessage("Инструмент «\(toolName)» не найден ни на одном из MCP-серверов.")
+                return
+            }
+
             let argsPreview = args.map { key, val -> String in
                 let valStr: String
                 switch val {
@@ -102,18 +104,17 @@ final class TavilyMCPAgent: BaseAgent {
                 }
                 return "\(key): \(valStr)"
             }.joined(separator: ", ")
-            appendInternalMessage("⚙️ MCP → \(toolName)(\(argsPreview))")
+            appendInternalMessage("⚙️ MCP[\(routing.label)] → \(toolName)(\(argsPreview))")
 
-            let mcpResult = await executeTool(client: client, name: toolName, args: args)
+            let mcpResult = await executeTool(client: routing.client, name: toolName, args: args)
 
-            // Показываем краткий ответ от MCP
             let resultPreview = String(mcpResult.prefix(200))
-            appendInternalMessage("⚙️ MCP ← \(resultPreview)")
-            // Передаём вопрос пользователя и результат MCP обратно в LLM для итогового ответа
+            appendInternalMessage("⚙️ MCP[\(routing.label)] ← \(resultPreview)")
+
             let finalReply: String
             do {
                 let finalResponse = try await sendMessage.execute(
-                    systemPrompt: "Ты помощник. Пользователь задал вопрос, ты вызвал инструмент \(toolName) и получил результат. Ответь пользователю на основе этих данных на том же языке, что и вопрос.",
+                    systemPrompt: "Ты помощник. Пользователь задал вопрос, ты вызвал инструмент \(toolName) [\(routing.label)] и получил результат. Ответь пользователю на основе этих данных на том же языке, что и вопрос.",
                     userMessage: "Вопрос: \(text)\n\nРезультат инструмента \(toolName):\n\(mcpResult)",
                     tools: [],
                     temperature: 0.7,
@@ -132,6 +133,45 @@ final class TavilyMCPAgent: BaseAgent {
         case .unknown:
             appendAssistantMessage(rawResponse)
         }
+    }
+
+    // MARK: - Servers setup
+
+    private func buildServers() {
+        servers = []
+        // Carwn — всегда доступен, использует Streamable HTTP transport (POST /mcp)
+        servers.append(MCPServer(
+            label: "Carwn",
+            client: MCPClient(url: URL(string: "https://carwn-carwnmcp-39c3.twc1.net/mcp")!)
+        ))
+        // Tavily — только если есть API-ключ, использует Streamable HTTP transport
+        if let key = try? apiKeyManager.getAPIKey(for: .tavily), !key.isEmpty {
+            servers.insert(MCPServer(
+                label: "Tavily",
+                client: MCPClient(apiKey: key)
+            ), at: 0)
+        }
+    }
+
+    // MARK: - Tool fetching
+
+    private func fetchAllTools() async -> [(tool: MCPTool, server: MCPServer)] {
+        // Пересоздаём серверы, чтобы подхватить актуальный Tavily-ключ
+        buildServers()
+
+        var results: [(tool: MCPTool, server: MCPServer)] = []
+        await withTaskGroup(of: [(tool: MCPTool, server: MCPServer)].self) { group in
+            for server in servers {
+                group.addTask {
+                    let tools = (try? await server.client.fetchTools()) ?? []
+                    return tools.map { (tool: $0, server: server) }
+                }
+            }
+            for await batch in group {
+                results.append(contentsOf: batch)
+            }
+        }
+        return results
     }
 
     // MARK: - Private helpers
@@ -155,18 +195,6 @@ final class TavilyMCPAgent: BaseAgent {
         )
     }
 
-    private func resolvedMCPClient() throws -> MCPClient {
-        if let existing = mcpClient { return existing }
-        guard let key = try? apiKeyManager.getAPIKey(for: .tavily), !key.isEmpty else {
-            throw MCPClientError.unexpectedFormat(
-                "Tavily API ключ не задан. Добавьте его в Настройки → Tavily MCP."
-            )
-        }
-        let client = MCPClient(apiKey: key)
-        mcpClient = client
-        return client
-    }
-
     private func executeTool(client: MCPClient, name: String, args: [String: AnyCodableValue]) async -> String {
         do {
             let result = try await client.callTool(name: name, arguments: args)
@@ -179,7 +207,7 @@ final class TavilyMCPAgent: BaseAgent {
     private func buildDispatchMessage(currentText: String) -> String {
         let history = conversation.messages
             .filter { $0.role == .user || $0.role == .assistant }
-            .suffix(5)  // последние 5 сообщений включая текущее
+            .suffix(5)
         guard !history.isEmpty else { return currentText }
         let historyLines = history.map { msg in
             let role = msg.role == .user ? "Пользователь" : "Ассистент"
@@ -188,28 +216,32 @@ final class TavilyMCPAgent: BaseAgent {
         return "Контекст предыдущих сообщений:\n\(historyLines)\n\nТекущий запрос: \(currentText)"
     }
 
-    private func buildSystemPrompt(tools: [MCPTool]) -> String {
-        // Строим компактный текстовый список инструментов для системного промпта
-        let toolsText = tools.enumerated().map { (i, tool) -> String in
-            var lines = ["\(i + 1). \(tool.name)"]
-            if let desc = tool.description { lines.append("   \(desc)") }
-            let params = tool.parameters()
-            if !params.isEmpty {
-                let paramList = params.map { p in
-                    let req = p.required ? "*" : ""
-                    let t = p.type.map { "(\($0))" } ?? ""
-                    return "\(p.name)\(req) \(t)".trimmingCharacters(in: .whitespaces)
-                }.joined(separator: ", ")
-                lines.append("   Params: \(paramList)")
-            }
-            return lines.joined(separator: "\n")
-        }.joined(separator: "\n\n")
+    private func buildSystemPrompt(entries: [(tool: MCPTool, server: MCPServer)]) -> String {
+        let toolsText: String
+        if entries.isEmpty {
+            toolsText = "(нет инструментов)"
+        } else {
+            toolsText = entries.enumerated().map { (i, entry) -> String in
+                var lines = ["\(i + 1). \(entry.tool.name) [\(entry.server.label)]"]
+                if let desc = entry.tool.description { lines.append("   \(desc)") }
+                let params = entry.tool.parameters()
+                if !params.isEmpty {
+                    let paramList = params.map { p in
+                        let req = p.required ? "*" : ""
+                        let t = p.type.map { "(\($0))" } ?? ""
+                        return "\(p.name)\(req) \(t)".trimmingCharacters(in: .whitespaces)
+                    }.joined(separator: ", ")
+                    lines.append("   Params: \(paramList)")
+                }
+                return lines.joined(separator: "\n")
+            }.joined(separator: "\n\n")
+        }
 
         return """
-        Ты диспетчер инструментов Tavily MCP-сервера.
+        Ты диспетчер инструментов MCP-серверов.
 
         Доступные инструменты (* — обязательный параметр):
-        \(toolsText.isEmpty ? "(нет инструментов)" : toolsText)
+        \(toolsText)
 
         Проанализируй запрос пользователя и верни СТРОГО один из трёх JSON-форматов (без комментариев, без markdown):
 
@@ -226,26 +258,39 @@ final class TavilyMCPAgent: BaseAgent {
         """
     }
 
-    private func formatToolList(_ tools: [MCPTool]) -> String {
-        guard !tools.isEmpty else { return "Список инструментов Tavily MCP пуст." }
+    private func formatToolList(entries: [(tool: MCPTool, server: MCPServer)]) -> String {
+        guard !entries.isEmpty else { return "Список инструментов MCP пуст." }
 
-        var lines = ["Доступные инструменты Tavily MCP (\(tools.count)):\n"]
-        for (i, tool) in tools.enumerated() {
-            lines.append("\(i + 1). **\(tool.name)**")
-            if let desc = tool.description {
-                lines.append("   \(desc)")
+        // Группируем по метке сервера
+        var grouped: [(label: String, tools: [MCPTool])] = []
+        for entry in entries {
+            if let idx = grouped.firstIndex(where: { $0.label == entry.server.label }) {
+                grouped[idx].tools.append(entry.tool)
+            } else {
+                grouped.append((label: entry.server.label, tools: [entry.tool]))
             }
-            let params = tool.parameters()
-            if !params.isEmpty {
-                lines.append("   Параметры:")
-                for p in params {
-                    let req = p.required ? " *" : ""
-                    let typeStr = p.type.map { " (\($0))" } ?? ""
-                    let descStr = p.description.map { ": \($0)" } ?? ""
-                    lines.append("   • \(p.name)\(req)\(typeStr)\(descStr)")
+        }
+
+        var lines: [String] = []
+        for group in grouped {
+            lines.append("**\(group.label)** (\(group.tools.count) инструментов):\n")
+            for (i, tool) in group.tools.enumerated() {
+                lines.append("\(i + 1). **\(tool.name)**")
+                if let desc = tool.description {
+                    lines.append("   \(desc)")
                 }
+                let params = tool.parameters()
+                if !params.isEmpty {
+                    lines.append("   Параметры:")
+                    for p in params {
+                        let req = p.required ? " *" : ""
+                        let typeStr = p.type.map { " (\($0))" } ?? ""
+                        let descStr = p.description.map { ": \($0)" } ?? ""
+                        lines.append("   • \(p.name)\(req)\(typeStr)\(descStr)")
+                    }
+                }
+                lines.append("")
             }
-            lines.append("")
         }
         lines.append("(* — обязательный параметр)")
         return lines.joined(separator: "\n")
@@ -268,7 +313,6 @@ final class TavilyMCPAgent: BaseAgent {
     }
 
     private func parseAction(from text: String) -> LLMAction {
-        // Перебираем все JSON-объекты в тексте, пока не найдём валидный action
         var searchFrom = text.startIndex
         while searchFrom < text.endIndex {
             guard let jsonStr = extractFirstJSON(from: String(text[searchFrom...])),
@@ -280,7 +324,6 @@ final class TavilyMCPAgent: BaseAgent {
                 return action
             }
 
-            // Сдвигаемся за найденный JSON и ищем следующий
             if let range = text.range(of: jsonStr, range: searchFrom..<text.endIndex) {
                 searchFrom = range.upperBound
             } else {
@@ -308,13 +351,11 @@ final class TavilyMCPAgent: BaseAgent {
             return nil
 
         default:
-            // Fallback: LLM использовала имя инструмента как action (напр. "tavily_search")
-            // Если есть поле "tool" или само action похоже на имя инструмента — трактуем как call
             let toolName: String
             if case .string(let t) = obj["tool"] {
                 toolName = t
             } else {
-                toolName = action  // само action и есть имя инструмента
+                toolName = action
             }
             var args: [String: AnyCodableValue] = [:]
             if case .object(let argsObj) = obj["args"] { args = argsObj }
