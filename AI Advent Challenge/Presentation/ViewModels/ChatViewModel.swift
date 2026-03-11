@@ -35,6 +35,16 @@ final class ChatViewModel: ObservableObject {
         historyStore.objectWillChange
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)
+
+        if let mcpAgent = agent as? MCPAgent {
+            mcpAgent.backgroundMessagePublisher
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] in
+                    guard let self else { return }
+                    self.messages = self.agent.conversation.messages.filter { $0.role != .system }
+                }
+                .store(in: &cancellables)
+        }
     }
 
     func sendMessage() {
