@@ -124,6 +124,21 @@ final class MCPAgent: BaseAgent {
                 iteration += 1
                 // продолжаем цикл
 
+            case .parallelCall(let tools):
+                let results = await withTaskGroup(of: (String, String).self) { group in
+                    for (name, args) in tools {
+                        group.addTask { await (name, self.executeMCPCall(toolName: name, args: args)) }
+                    }
+                    var collected: [(String, String)] = []
+                    for await pair in group { collected.append(pair) }
+                    return collected
+                }
+                for (name, result) in results {
+                    iterationContext += "\nВызов \(iteration + 1) [\(name)]: \(result)"
+                }
+                iteration += 1
+                // продолжаем цикл
+
             case .chat(let reply):
                 appendAssistantMessage(reply)
                 return
@@ -564,6 +579,7 @@ final class MCPAgent: BaseAgent {
     private enum LLMAction {
         case list
         case call(tool: String, args: [String: AnyCodableValue])
+        case parallelCall(tools: [(name: String, args: [String: AnyCodableValue])])
         case chat(reply: String)
         case schedule(description: String, intervalSeconds: Int)
         case cancelTask(description: String)
@@ -604,6 +620,19 @@ final class MCPAgent: BaseAgent {
             guard case .string(let toolName) = obj["tool"] else { return nil }
             var args: [String: AnyCodableValue] = [:]
             if case .object(let argsObj) = obj["args"] { args = argsObj }
+            // Обработка multi_tool_use.parallel от OpenAI
+            if toolName == "multi_tool_use.parallel",
+               case .array(let uses) = args["tool_uses"] {
+                var tools: [(name: String, args: [String: AnyCodableValue])] = []
+                for use in uses {
+                    guard case .object(let useDict) = use,
+                          case .string(let recipientName) = useDict["recipient_name"] else { continue }
+                    var toolArgs: [String: AnyCodableValue] = [:]
+                    if case .object(let params) = useDict["parameters"] { toolArgs = params }
+                    tools.append((name: recipientName, args: toolArgs))
+                }
+                if !tools.isEmpty { return .parallelCall(tools: tools) }
+            }
             return .call(tool: toolName, args: args)
 
         case "chat":
