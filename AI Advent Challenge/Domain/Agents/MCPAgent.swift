@@ -88,75 +88,104 @@ final class MCPAgent: BaseAgent {
             toolRegistry[entry.tool.name] = (client: entry.server.client, label: entry.server.label)
         }
 
-        // 3. Вызываем LLM как диспетчера
+        // 3. Агентный цикл: LLM-диспетчер → MCP-вызов → накопление результатов → повтор
         let systemPrompt = buildSystemPrompt(entries: allEntries)
-        let dispatchResponse: AgentResponse
-        do {
-            dispatchResponse = try await sendMessage.execute(
-                systemPrompt: systemPrompt,
-                userMessage: buildDispatchMessage(currentText: text),
-                tools: [],
-                temperature: 0.2,
-                maxTokens: 500,
-                stopWords: nil
-            )
-        } catch {
-            appendAssistantMessage("Ошибка LLM: \(error.localizedDescription)")
-            return
-        }
+        let maxIterations = 5
+        var iterationContext = ""
+        var iteration = 0
 
-        // 4. Парсим решение LLM
-        let rawResponse = dispatchResponse.message.content
-        let action = parseAction(from: rawResponse)
-
-        switch action {
-        case .list:
-            appendAssistantMessage(formatToolList(entries: allEntries))
-
-        case .call(let toolName, let args):
-            let reply = await executeCallAction(toolName: toolName, args: args, originalText: text, allEntries: allEntries)
-            appendAssistantMessage(reply)
-
-        case .chat(let reply):
-            appendAssistantMessage(reply)
-
-        case .schedule(let desc, let intervalSeconds):
-            guard intervalSeconds >= 10 else {
-                appendAssistantMessage("Минимальный интервал — 10 секунд.")
+        while iteration < maxIterations {
+            let dispatchResponse: AgentResponse
+            do {
+                dispatchResponse = try await sendMessage.execute(
+                    systemPrompt: systemPrompt,
+                    userMessage: buildDispatchMessage(currentText: text, mcpContext: iterationContext),
+                    tools: [],
+                    temperature: 0.2,
+                    maxTokens: 500,
+                    stopWords: nil
+                )
+            } catch {
+                appendAssistantMessage("Ошибка LLM: \(error.localizedDescription)")
                 return
             }
-            let task = ScheduledTask(id: UUID(), description: desc, intervalSeconds: intervalSeconds, createdAt: Date())
-            scheduledTasks.append(task)
-            saveScheduledTasks()
-            startTimerTask(for: task)
-            let num = scheduledTasks.count
-            appendAssistantMessage("✅ Задача №\(num) «\(desc)» запущена каждые \(intervalSeconds) с.\nСкажите «отмени задачу \(desc)» для остановки.")
 
-        case .cancelTask(let query):
-            if let match = scheduledTasks.first(where: { $0.description.localizedCaseInsensitiveContains(query) }) {
-                cancelTimerTask(id: match.id)
-                appendAssistantMessage("Задача «\(match.description)» отменена.")
-            } else {
-                let names = scheduledTasks.map { "«\($0.description)»" }.joined(separator: ", ")
-                appendAssistantMessage("Задача не найдена. Активные: \(names.isEmpty ? "нет" : names)")
+            let rawResponse = dispatchResponse.message.content
+            let action = parseAction(from: rawResponse)
+
+            switch action {
+            case .call(let toolName, let args):
+                let mcpResult = await executeMCPCall(toolName: toolName, args: args)
+                iterationContext += "\nВызов \(iteration + 1) [\(toolName)]: \(mcpResult)"
+                iteration += 1
+                // продолжаем цикл
+
+            case .chat(let reply):
+                appendAssistantMessage(reply)
+                return
+
+            case .list:
+                appendAssistantMessage(formatToolList(entries: allEntries))
+                return
+
+            case .schedule(let desc, let intervalSeconds):
+                guard intervalSeconds >= 10 else {
+                    appendAssistantMessage("Минимальный интервал — 10 секунд.")
+                    return
+                }
+                let task = ScheduledTask(id: UUID(), description: desc, intervalSeconds: intervalSeconds, createdAt: Date())
+                scheduledTasks.append(task)
+                saveScheduledTasks()
+                startTimerTask(for: task)
+                let num = scheduledTasks.count
+                appendAssistantMessage("✅ Задача №\(num) «\(desc)» запущена каждые \(intervalSeconds) с.\nСкажите «отмени задачу \(desc)» для остановки.")
+                return
+
+            case .cancelTask(let query):
+                if let match = scheduledTasks.first(where: { $0.description.localizedCaseInsensitiveContains(query) }) {
+                    cancelTimerTask(id: match.id)
+                    appendAssistantMessage("Задача «\(match.description)» отменена.")
+                } else {
+                    let names = scheduledTasks.map { "«\($0.description)»" }.joined(separator: ", ")
+                    appendAssistantMessage("Задача не найдена. Активные: \(names.isEmpty ? "нет" : names)")
+                }
+                return
+
+            case .cancelAllTasks:
+                cancelAllTimerTasks()
+                appendAssistantMessage("Все плановые задачи отменены.")
+                return
+
+            case .listTasks:
+                if scheduledTasks.isEmpty {
+                    appendAssistantMessage("Нет активных плановых задач.")
+                } else {
+                    let list = scheduledTasks.enumerated().map { i, t in
+                        "№\(i+1). «\(t.description)» — каждые \(t.intervalSeconds) с"
+                    }.joined(separator: "\n")
+                    appendAssistantMessage("Активные задачи (\(scheduledTasks.count)):\n\(list)")
+                }
+                return
+
+            case .unknown:
+                appendAssistantMessage(rawResponse)
+                return
             }
+        }
 
-        case .cancelAllTasks:
-            cancelAllTimerTasks()
-            appendAssistantMessage("Все плановые задачи отменены.")
-
-        case .listTasks:
-            if scheduledTasks.isEmpty {
-                appendAssistantMessage("Нет активных плановых задач.")
-            } else {
-                let list = scheduledTasks.enumerated().map { i, t in
-                    "№\(i+1). «\(t.description)» — каждые \(t.intervalSeconds) с"
-                }.joined(separator: "\n")
-                appendAssistantMessage("Активные задачи (\(scheduledTasks.count)):\n\(list)")
-            }
-
-        case .unknown:
-            appendAssistantMessage(rawResponse)
+        // Достигли maxIterations без "chat" — просим LLM подвести итог
+        do {
+            let finalResponse = try await sendMessage.execute(
+                systemPrompt: "Ты помощник. Подведи итог выполненных действий и дай финальный ответ пользователю.",
+                userMessage: "Вопрос: \(text)\n\nРезультаты инструментов:\(iterationContext)",
+                tools: [],
+                temperature: 0.7,
+                maxTokens: 1000,
+                stopWords: nil
+            )
+            appendAssistantMessage(finalResponse.message.content)
+        } catch {
+            appendAssistantMessage("Ошибка при формировании итогового ответа: \(error.localizedDescription)")
         }
     }
 
@@ -289,6 +318,36 @@ final class MCPAgent: BaseAgent {
 
     // MARK: - Shared call action logic
 
+    /// Выполняет MCP-инструмент и возвращает сырой результат. Используется в агентном цикле.
+    private func executeMCPCall(
+        toolName: String,
+        args: [String: AnyCodableValue]
+    ) async -> String {
+        guard let routing = toolRegistry[toolName] else {
+            return "Инструмент «\(toolName)» не найден."
+        }
+
+        let argsPreview = args.map { key, val -> String in
+            let valStr: String
+            switch val {
+            case .string(let s): valStr = s
+            case .int(let i): valStr = "\(i)"
+            case .double(let d): valStr = "\(d)"
+            case .bool(let b): valStr = "\(b)"
+            default: valStr = "…"
+            }
+            return "\(key): \(valStr)"
+        }.joined(separator: ", ")
+        appendInternalMessage("⚙️ MCP[\(routing.label)] → \(toolName)(\(argsPreview))")
+
+        let mcpResult = await executeTool(client: routing.client, name: toolName, args: args)
+
+        let resultPreview = String(mcpResult.prefix(200))
+        appendInternalMessage("⚙️ MCP[\(routing.label)] ← \(resultPreview)")
+
+        return mcpResult
+    }
+
     private func executeCallAction(
         toolName: String,
         args: [String: AnyCodableValue],
@@ -362,16 +421,23 @@ final class MCPAgent: BaseAgent {
         }
     }
 
-    private func buildDispatchMessage(currentText: String) -> String {
+    private func buildDispatchMessage(currentText: String, mcpContext: String = "") -> String {
         let history = conversation.messages
             .filter { $0.role == .user || $0.role == .assistant }
             .suffix(5)
-        guard !history.isEmpty else { return currentText }
-        let historyLines = history.map { msg in
-            let role = msg.role == .user ? "Пользователь" : "Ассистент"
-            return "\(role): \(msg.content)"
-        }.joined(separator: "\n")
-        return "Контекст предыдущих сообщений:\n\(historyLines)\n\nТекущий запрос: \(currentText)"
+        var parts: [String] = []
+        if !history.isEmpty {
+            let historyLines = history.map { msg in
+                let role = msg.role == .user ? "Пользователь" : "Ассистент"
+                return "\(role): \(msg.content)"
+            }.joined(separator: "\n")
+            parts.append("Контекст предыдущих сообщений:\n\(historyLines)")
+        }
+        parts.append("Текущий запрос: \(currentText)")
+        if !mcpContext.isEmpty {
+            parts.append("Результаты уже выполненных инструментов:\(mcpContext)\n\nНа основе этих данных реши: нужен ли ещё один вызов инструмента, или достаточно данных для ответа пользователю через {\"action\":\"chat\",\"reply\":\"...\"}?")
+        }
+        return parts.joined(separator: "\n\n")
     }
 
     private func buildSystemPrompt(entries: [(tool: MCPTool, server: MCPServer)]) -> String {
@@ -401,6 +467,8 @@ final class MCPAgent: BaseAgent {
         Доступные инструменты (* — обязательный параметр):
         \(toolsText)
 
+        Ты можешь вызывать инструменты последовательно. После каждого вызова ты получишь результат и можешь решить вызвать ещё один инструмент или дать итоговый ответ пользователю через {"action":"chat","reply":"..."}. Возвращай "chat" когда у тебя достаточно данных для ответа.
+
         Проанализируй запрос пользователя и верни СТРОГО один из JSON-форматов (без комментариев, без markdown):
 
         1. Показать список инструментов:
@@ -409,7 +477,7 @@ final class MCPAgent: BaseAgent {
         2. Вызвать инструмент:
            {"action":"call","tool":"имя_инструмента","args":{"параметр":"значение"}}
 
-        3. Ответить текстом (если запрос не связан с инструментами):
+        3. Ответить текстом (если запрос не связан с инструментами или данных уже достаточно):
            {"action":"chat","reply":"твой ответ"}
 
         4. Запланировать периодическую задачу (минимальный интервал — 10 секунд):
