@@ -419,7 +419,7 @@ API context sent to LLM:
 
 `SettingsViewModel` holds a reference to `LongTermMemoryStore` (injected via `DependencyContainer.makeSettingsViewModel()`). `ContentView` passes `container.longTermMemoryStore` to `SettingsView`.
 
-**Internal ⚙️ messages** — `SolverAgent` creates `.summaryUsage` messages with content starting with "⚙️". `MessageRow` detects these via `isInternalMessage` computed property: shows the content as the label (instead of "сжатие"), hides the gray content block, and uses a `gearshape` icon instead of `arrow.triangle.2.circlepath`.
+**Internal ⚙️ messages** — `SolverAgent` creates `.summaryUsage` messages with content starting with "⚙️". `MessageRow` detects these via `isInternalMessage` computed property: shows the content as multiline text, and uses a `gearshape` icon instead of `arrow.triangle.2.circlepath`. All `.summaryUsage` messages (both internal and compression) are rendered in a card with a purple-tinted background and border (`Color.purple.opacity(0.06)` fill + `0.5pt` stroke) to visually separate consecutive system messages.
 
 **Tavily API key** — stored in Keychain under `com.aiapp.tavily`. Added `case tavily` to `APIKeyProvider`. Settings → «MCP серверы» section with `SecureField`, Save, Delete buttons.
 

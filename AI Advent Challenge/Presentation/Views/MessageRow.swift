@@ -48,29 +48,23 @@ struct MessageRow: View {
     }
 
     private var internalOrCompressionRow: some View {
-        VStack(spacing: 4) {
-            HStack(spacing: 6) {
-                line
-                Image(systemName: isInternalMessage ? "gearshape" : "arrow.triangle.2.circlepath")
-                    .font(.caption2)
-                    .foregroundStyle(.purple.opacity(0.7))
-                summaryUsageContent
-                line
-            }
-            if !message.content.isEmpty && !isInternalMessage {
-                Text(message.content)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(Color.purple.opacity(0.06))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .padding(.horizontal, 8)
-            }
+        HStack(spacing: 6) {
+            Image(systemName: isInternalMessage ? "gearshape" : "arrow.triangle.2.circlepath")
+                .font(.caption2)
+                .foregroundStyle(.purple.opacity(0.7))
+                .fixedSize()
+            summaryUsageContent
         }
-        .padding(.vertical, 2)
-        .frame(width: UIScreen.main.bounds.width * 0.85)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.purple.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(Color.purple.opacity(0.15), lineWidth: 0.5)
+        )
+        .padding(.horizontal, 8)
     }
 
     private var line: some View {
@@ -82,38 +76,36 @@ struct MessageRow: View {
     }
 
     private var summaryUsageContent: some View {
-        HStack(spacing: 4) {
+        VStack(alignment: .leading, spacing: 2) {
             if isInternalMessage {
                 Text(message.content)
                     .foregroundStyle(.purple.opacity(0.8))
+                    .fixedSize(horizontal: false, vertical: true)
                 if let prompt = message.promptTokens, let completion = message.completionTokens {
-                    Text("↑\(prompt) ↓\(completion)")
-                        .foregroundStyle(.secondary)
-                    if let cost = summaryTotalCostRUB {
-                        Text("·")
-                            .foregroundStyle(.tertiary)
-                        Text("₽\(fmtCost(cost))")
-                            .foregroundStyle(.purple.opacity(0.8))
+                    HStack(spacing: 4) {
+                        Text("↑\(prompt) ↓\(completion)")
+                            .foregroundStyle(.secondary)
+                        if let cost = summaryTotalCostRUB {
+                            Text("·").foregroundStyle(.tertiary)
+                            Text("₽\(fmtCost(cost))").foregroundStyle(.purple.opacity(0.8))
+                        }
                     }
                 }
             } else if let prompt = message.promptTokens, let completion = message.completionTokens {
-                Text("сжатие")
-                    .foregroundStyle(.purple.opacity(0.8))
-                Text("↑\(prompt) ↓\(completion)")
-                    .foregroundStyle(.secondary)
-                if let cost = summaryTotalCostRUB {
-                    Text("·")
-                        .foregroundStyle(.tertiary)
-                    Text("₽\(fmtCost(cost))")
-                        .foregroundStyle(.purple.opacity(0.8))
+                HStack(spacing: 4) {
+                    Text("сжатие").foregroundStyle(.purple.opacity(0.8))
+                    Text("↑\(prompt) ↓\(completion)").foregroundStyle(.secondary)
+                    if let cost = summaryTotalCostRUB {
+                        Text("·").foregroundStyle(.tertiary)
+                        Text("₽\(fmtCost(cost))").foregroundStyle(.purple.opacity(0.8))
+                    }
                 }
             } else {
-                Text("сжатие контекста")
-                    .foregroundStyle(.purple.opacity(0.8))
+                Text("сжатие контекста").foregroundStyle(.purple.opacity(0.8))
             }
         }
         .font(.caption2.monospaced())
-        .fixedSize()
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var summaryTotalCostRUB: Double? {
