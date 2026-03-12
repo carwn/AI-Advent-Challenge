@@ -32,6 +32,7 @@ final class MCPAgent: BaseAgent {
     private var toolRegistry: [String: (client: MCPClient, label: String)] = [:]
     private let agentConversationId: UUID
     private let apiKeyManager: APIKeyManager
+    private let currentModelName: String?
 
     private var scheduledTasks: [ScheduledTask] = []
     private var timerTasks: [UUID: Task<Void, Never>] = [:]
@@ -50,10 +51,12 @@ final class MCPAgent: BaseAgent {
         sendMessage: any SendMessageToLMMUseCase,
         persistence: ConversationPersistenceService,
         conversationId: UUID,
-        apiKeyManager: APIKeyManager
+        apiKeyManager: APIKeyManager,
+        modelName: String? = nil
     ) {
         self.apiKeyManager = apiKeyManager
         self.agentConversationId = conversationId
+        self.currentModelName = modelName
 
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         self.tasksFileURL = appSupport.appendingPathComponent("AgentState/\(conversationId.uuidString)_mcp_tasks.json")
@@ -112,6 +115,7 @@ final class MCPAgent: BaseAgent {
 
             let rawResponse = dispatchResponse.message.content
             let action = parseAction(from: rawResponse)
+            appendInternalMessage("⚙️ Диспетчер [итерация \(iteration + 1)]", response: dispatchResponse)
 
             switch action {
             case .call(let toolName, let args):
@@ -183,7 +187,7 @@ final class MCPAgent: BaseAgent {
                 maxTokens: 1000,
                 stopWords: nil
             )
-            appendAssistantMessage(finalResponse.message.content)
+            appendAssistantMessage(finalResponse.message.content, response: finalResponse)
         } catch {
             appendAssistantMessage("Ошибка при формировании итогового ответа: \(error.localizedDescription)")
         }
@@ -239,6 +243,7 @@ final class MCPAgent: BaseAgent {
             fireBackgroundPublisher()
             return
         }
+        appendInternalMessage("⚙️ Диспетчер (таймер)", response: dispatchResponse)
 
         let action = parseAction(from: dispatchResponse.message.content)
         switch action {
@@ -385,6 +390,7 @@ final class MCPAgent: BaseAgent {
                 maxTokens: 1000,
                 stopWords: nil
             )
+            appendInternalMessage("⚙️ Синтез ответа [\(toolName)]", response: finalResponse)
             return finalResponse.message.content
         } catch {
             return mcpResult
@@ -393,13 +399,25 @@ final class MCPAgent: BaseAgent {
 
     // MARK: - Private helpers
 
-    private func appendInternalMessage(_ content: String) {
-        conversation.addMessage(Message(role: .summaryUsage, content: content))
+    private func appendInternalMessage(_ content: String, response: AgentResponse? = nil) {
+        conversation.addMessage(Message(
+            role: .summaryUsage,
+            content: content,
+            modelName: currentModelName,
+            promptTokens: response?.usage?.promptTokens,
+            completionTokens: response?.usage?.completionTokens
+        ))
         persistence.save(conversation, forKey: agentConversationId.uuidString)
     }
 
-    private func appendAssistantMessage(_ content: String) {
-        conversation.addMessage(Message(role: .assistant, content: content))
+    private func appendAssistantMessage(_ content: String, response: AgentResponse? = nil) {
+        conversation.addMessage(Message(
+            role: .assistant,
+            content: content,
+            modelName: currentModelName,
+            promptTokens: response?.usage?.promptTokens,
+            completionTokens: response?.usage?.completionTokens
+        ))
         persistence.save(conversation, forKey: agentConversationId.uuidString)
 
         let firstUser = conversation.messages.first(where: { $0.role == .user })?.content

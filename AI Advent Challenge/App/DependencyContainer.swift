@@ -195,7 +195,8 @@ final class DependencyContainer: ObservableObject {
                 sendMessage: useCase,
                 persistence: conversationPersistence,
                 conversationId: id,
-                apiKeyManager: apiKeyManager
+                apiKeyManager: apiKeyManager,
+                modelName: modelStore.selectedProvider.rawValue
             )
         default:
             return GeneralAgent(sendMessage: useCase, persistence: conversationPersistence, conversationId: id)
