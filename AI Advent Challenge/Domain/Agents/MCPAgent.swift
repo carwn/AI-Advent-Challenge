@@ -115,7 +115,7 @@ final class MCPAgent: BaseAgent {
 
             let rawResponse = dispatchResponse.message.content
             let action = parseAction(from: rawResponse)
-            appendInternalMessage("⚙️ Диспетчер [итерация \(iteration + 1)]", response: dispatchResponse)
+            appendInternalMessage("⚙️ Диспетчер [итерация \(iteration + 1)] \(actionLabel(action))", response: dispatchResponse)
 
             switch action {
             case .call(let toolName, let args):
@@ -575,6 +575,45 @@ final class MCPAgent: BaseAgent {
     }
 
     // MARK: - Action parsing
+
+    private func describeValue(_ v: AnyCodableValue) -> String {
+        switch v {
+        case .string(let s):
+            let truncated = String(s.prefix(60))
+            return truncated.count < s.count ? "\"\(truncated)…\"" : "\"\(truncated)\""
+        case .int(let n):    return "\(n)"
+        case .double(let d): return String(format: "%.2f", d)
+        case .bool(let b):   return b ? "true" : "false"
+        case .array(let a):  return "[\(a.count) эл.]"
+        case .object:        return "{…}"
+        case .null:          return "null"
+        }
+    }
+
+    private func actionLabel(_ action: LLMAction) -> String {
+        switch action {
+        case .call(let tool, let args):
+            let argsStr = args.isEmpty ? "" : "(\(args.map { "\($0.key): \(describeValue($0.value))" }.joined(separator: ", ")))"
+            return "→ call: \(tool)\(argsStr)"
+        case .parallelCall(let tools):
+            return "→ parallel: \(tools.map(\.name).joined(separator: ", "))"
+        case .chat(let reply):
+            let preview = String(reply.prefix(80))
+            return "→ chat: «\(preview)\(reply.count > 80 ? "…" : "")»"
+        case .list:
+            return "→ список инструментов"
+        case .schedule(let desc, let interval):
+            return "→ задача: «\(desc)» (каждые \(interval)с)"
+        case .cancelTask(let desc):
+            return "→ отмена: «\(desc)»"
+        case .cancelAllTasks:
+            return "→ отмена всех задач"
+        case .listTasks:
+            return "→ список задач"
+        case .unknown:
+            return "→ неизвестное действие"
+        }
+    }
 
     private enum LLMAction {
         case list
