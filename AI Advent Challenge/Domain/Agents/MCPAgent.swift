@@ -93,7 +93,7 @@ final class MCPAgent: BaseAgent {
 
         // 3. Агентный цикл: LLM-диспетчер → MCP-вызов → накопление результатов → повтор
         let systemPrompt = buildSystemPrompt(entries: allEntries)
-        let maxIterations = 5
+        let maxIterations = 10
         var iterationContext = ""
         var iteration = 0
 
@@ -199,7 +199,7 @@ final class MCPAgent: BaseAgent {
                 userMessage: "Вопрос: \(text)\n\nРезультаты инструментов:\(iterationContext)",
                 tools: [],
                 temperature: 0.7,
-                maxTokens: 1000,
+                maxTokens: 2000,
                 stopWords: nil
             )
             appendAssistantMessage(finalResponse.message.content, response: finalResponse)
@@ -501,6 +501,8 @@ final class MCPAgent: BaseAgent {
         \(toolsText)
 
         Ты можешь вызывать инструменты последовательно. После каждого вызова ты получишь результат и можешь решить вызвать ещё один инструмент или дать итоговый ответ пользователю через {"action":"chat","reply":"..."}. Возвращай "chat" когда у тебя достаточно данных для ответа.
+
+        При зависимых вызовах (результат одного нужен для следующего) вызывай инструменты последовательно: каждый раз возвращай {"action":"call",...}, получай результат, используй числовые/строковые значения из него в следующем вызове.
 
         Проанализируй запрос пользователя и верни СТРОГО один из JSON-форматов (без комментариев, без markdown):
 
