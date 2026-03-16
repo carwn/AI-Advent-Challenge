@@ -111,6 +111,11 @@ final class DependencyContainer: ObservableObject {
                           icon: "network",
                           description: "Управляет инструментами нескольких MCP-серверов (Tavily, Carwn)",
                           compressionPolicyDescription: nil),
+            AgentTemplate(id: "rag_agent",
+                          name: "SwiftUI Docs",
+                          icon: "book.pages",
+                          description: "Отвечает на вопросы по документации SwiftUI из встроенной базы знаний",
+                          compressionPolicyDescription: nil),
         ]
     }
 
@@ -197,6 +202,12 @@ final class DependencyContainer: ObservableObject {
                 conversationId: id,
                 apiKeyManager: apiKeyManager,
                 modelName: modelStore.selectedProvider.rawValue
+            )
+        case "rag_agent":
+            return try RAGAgent(
+                sendMessage: useCase,
+                persistence: conversationPersistence,
+                conversationId: id
             )
         default:
             return GeneralAgent(sendMessage: useCase, persistence: conversationPersistence, conversationId: id)

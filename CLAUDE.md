@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**AI Advent Challenge** is an iOS SwiftUI app that lets users chat with AI agents powered by multiple LLM providers (OpenAI, Anthropic, Google Gemini) via ProxyAPI.ru. Users can create multiple named conversations, each tied to one of 10 specialized agents, switch between 10 LLM models, and agents can call tools (weather, calculator, search, Tavily MCP) as part of their responses. Conversations can be branched, creating a tree of forked chats.
+**AI Advent Challenge** is an iOS SwiftUI app that lets users chat with AI agents powered by multiple LLM providers (OpenAI, Anthropic, Google Gemini) via ProxyAPI.ru. Users can create multiple named conversations, each tied to one of 11 specialized agents, switch between 10 LLM models, and agents can call tools (weather, calculator, search, Tavily MCP) as part of their responses. Conversations can be branched, creating a tree of forked chats.
 
 ## Git
 
@@ -18,7 +18,7 @@ When the user explicitly asks to make a commit:
 This is a standard Xcode project with no external package manager (no SPM packages, no Podfile).
 
 - **Build/Run**: Open `AI Advent Challenge.xcodeproj` in Xcode and run on a simulator or device.
-- **New files**: The project uses `PBXFileSystemSynchronizedRootGroup` (Xcode 16+) — files are automatically included in the build when added to the directory. No need to manually edit `project.pbxproj`.
+- **New files**: The project uses `PBXFileSystemSynchronizedRootGroup` (Xcode 16+) — Swift source files and plain resources are automatically included. **Exception**: `.mlpackage` bundles require an explicit `PBXFileReference` + `PBXBuildFile` entry in `project.pbxproj` and an `explicitFileReferences` key in the sync root group, because the build system needs to trigger `CoreMLModelCompile` for them.
 - **API Key**: The app requires a ProxyAPI.ru key entered via the in-app Settings screen; it is stored in Keychain under service name `com.aiapp.openai`. A single key is used for all providers (OpenAI, Anthropic, Gemini).
 
 ## Running Tests
@@ -144,6 +144,7 @@ Each agent is a `final class` in `Domain/Agents/`, inheriting from `BaseAgent`. 
 | `TaskStateMachineAgent` | Менеджер задач | checklist | — | — | — | None |
 | `SolverAgent` | Автономный решатель | cpu | — | — | — | None |
 | `MCPAgent` | MCP агент | network | **0.2** (dispatch) | **500** (dispatch) | — | None |
+| `RAGAgent` | SwiftUI Docs | book.pages | — | **1500** | — | None |
 
 _(— means BaseAgent default: temperature 0.7, maxTokens 1000, stopWords nil, availableTools [])_
 
@@ -162,6 +163,8 @@ _(— means BaseAgent default: temperature 0.7, maxTokens 1000, stopWords nil, a
 `TaskStateMachineAgent` is a finite state machine that manages user tasks through five phases: `idle → planning → execution → validation → done`. It decomposes tasks into steps via LLM, guides the user step-by-step, supports pause/resume without repeating the full plan, and auto-validates results after the last step. State machine uses `TaskTransition` enum with `canApply()` / `apply()` guards; all mutations immediately call `saveTaskState()`. Phase state is persisted to `AgentState/<conversationId>_task_state.json`. Supports plan revision during planning and re-planning during execution.
 
 Supports **invariants** — user-defined constraints enforced across all phases. Invariants are stored in `AgentState/<conversationId>_invariants.json` (not deleted on `clearConversation()`). Commands (any phase): `инвариант: <rule>` adds, `инварианты` lists, `удалить инвариант N` removes, `очистить инварианты` clears all. On `idle` phase: a new task is checked against invariants via LLM before decomposition; conflicting tasks are blocked with an explanation. Invariants are also injected into the `decomposeTask()` system prompt so generated steps comply with them.
+
+`RAGAgent` answers questions about SwiftUI API using a built-in knowledge base (~8400 chunks from Apple docs). Before each LLM call, `send(_:)` calls `RAGService.buildContext(for:topK:)` to retrieve the top-3 most relevant chunks via cosine similarity (threshold `minScore: 0.25`). If context is found, the augmented text (context + original question) is sent to the LLM, but the conversation stores the original user message. The RAG context is displayed as a `summaryUsage` message prefixed with "📚" (icon: `book.pages`). If no context is found, falls back to `super.send(text)` directly. Uses `CoreMLEmbeddingService` with BAAI/bge-small-en-v1.5 (offline, Neural Engine). Resources live in `Infrastructure/RAG/`: `chunks.json` and `vocab.txt` (auto-included by sync group), `BAAI_bge-small-en-v1.5.mlpackage` (explicit PBXFileReference, compiled to `.mlmodelc`). `BaseAgent.saveConversation()` helper is used to re-persist the conversation after retroactively replacing the augmented user message with the original text.
 
 ## SendMessageUseCase
 

@@ -22,6 +22,7 @@ struct MessageRow: View {
 
     private var isInternalMessage: Bool { message.content.hasPrefix("⚙️") }
     private var isPhaseMessage: Bool { message.content.hasPrefix("📍") }
+    private var isRAGMessage: Bool { message.content.hasPrefix("📚") }
 
     @ViewBuilder
     private var summaryUsageRow: some View {
@@ -49,7 +50,7 @@ struct MessageRow: View {
 
     private var internalOrCompressionRow: some View {
         HStack(spacing: 6) {
-            Image(systemName: isInternalMessage ? "gearshape" : "arrow.triangle.2.circlepath")
+            Image(systemName: isInternalMessage ? "gearshape" : isRAGMessage ? "book.pages" : "arrow.triangle.2.circlepath")
                 .font(.caption2)
                 .foregroundStyle(.purple.opacity(0.7))
                 .fixedSize()
@@ -100,6 +101,10 @@ struct MessageRow: View {
                         Text("₽\(fmtCost(cost))").foregroundStyle(.purple.opacity(0.8))
                     }
                 }
+            } else if !message.content.isEmpty {
+                Text(message.content)
+                    .foregroundStyle(.purple.opacity(0.8))
+                    .fixedSize(horizontal: false, vertical: true)
             } else {
                 Text("сжатие контекста").foregroundStyle(.purple.opacity(0.8))
             }

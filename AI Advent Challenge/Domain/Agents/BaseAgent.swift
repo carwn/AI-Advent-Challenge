@@ -99,6 +99,12 @@ class BaseAgent: Agent {
         )
     }
 
+    /// Сохраняет текущее состояние conversation в persistence.
+    /// Используется подклассами, которым нужно скорректировать сообщения после super.send().
+    func saveConversation() {
+        persistence.save(conversation, forKey: conversationId.uuidString)
+    }
+
     func clearConversation() {
         conversation = Conversation(systemPrompt: systemPrompt)
         compressionPolicy?.reset()
