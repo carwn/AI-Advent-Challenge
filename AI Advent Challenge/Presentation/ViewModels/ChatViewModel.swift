@@ -14,6 +14,7 @@ final class ChatViewModel: ObservableObject {
     @Published var inputText: String = ""
     @Published var isLoading: Bool = false
     @Published var error: String?
+    @Published var ragEnabled: Bool = false
 
     var totalPromptTokens: Int { messages.reduce(0) { $0 + ($1.promptTokens ?? 0) } }
     var totalCompletionTokens: Int { messages.reduce(0) { $0 + ($1.completionTokens ?? 0) } }
@@ -22,15 +23,28 @@ final class ChatViewModel: ObservableObject {
     var agentName: String { agent.name }
     var agentIcon: String { agent.icon }
     var agentCompressionPolicy: (any ContextCompressionPolicy)? { agent.compressionPolicy }
+    var isRAGAgent: Bool { agent is RAGAgent }
 
     private let agent: any Agent
     let historyStore: MessageHistoryStore
     private var cancellables = Set<AnyCancellable>()
 
+    func setRAGEnabled(_ value: Bool) {
+        let command = value ? "rag on" : "rag off"
+        isLoading = true
+        Task {
+            try? await agent.send(command)
+            messages = agent.conversation.messages.filter { $0.role != .system }
+            if let ra = agent as? RAGAgent { ragEnabled = ra.isRAGEnabled }
+            isLoading = false
+        }
+    }
+
     init(agent: any Agent, historyStore: MessageHistoryStore) {
         self.agent = agent
         self.historyStore = historyStore
         self.messages = agent.conversation.messages.filter { $0.role != .system }
+        self.ragEnabled = (agent as? RAGAgent)?.isRAGEnabled ?? false
 
         historyStore.objectWillChange
             .sink { [weak self] _ in self?.objectWillChange.send() }
@@ -76,6 +90,7 @@ final class ChatViewModel: ObservableObject {
 
             pollTask.cancel()
             messages = agent.conversation.messages.filter { $0.role != .system }
+            if let ra = agent as? RAGAgent { ragEnabled = ra.isRAGEnabled }
             isLoading = false
         }
     }

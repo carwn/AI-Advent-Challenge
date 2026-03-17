@@ -10,6 +10,7 @@ import Foundation
 
 final class RAGAgent: BaseAgent {
     private let ragService: RAGService
+    var isRAGEnabled: Bool = true
 
     override var name: String        { "SwiftUI Docs" }
     override var icon: String        { "book.pages" }
@@ -47,6 +48,30 @@ final class RAGAgent: BaseAgent {
     }
 
     override func send(_ text: String) async throws {
+        // Команды переключения RAG
+        let lower = text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        if lower == "/rag on" || lower == "rag on" || lower == "/rag вкл" || lower == "rag вкл" {
+            isRAGEnabled = true
+            conversation.messages.append(Message(role: .user, content: text))
+            conversation.messages.append(Message(role: .assistant,
+                content: "✅ RAG включён. Буду использовать базу знаний SwiftUI при ответах."))
+            saveConversation()
+            return
+        }
+        if lower == "/rag off" || lower == "rag off" || lower == "/rag выкл" || lower == "rag выкл" {
+            isRAGEnabled = false
+            conversation.messages.append(Message(role: .user, content: text))
+            conversation.messages.append(Message(role: .assistant,
+                content: "⛔ RAG отключён. Буду отвечать только из общих знаний LLM."))
+            saveConversation()
+            return
+        }
+
+        guard isRAGEnabled else {
+            try await super.send(text)
+            return
+        }
+
         let context = await ragService.buildContext(for: text, topK: 3)
         guard !context.isEmpty else {
             try await super.send(text)

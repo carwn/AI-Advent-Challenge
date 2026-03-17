@@ -138,6 +138,18 @@ struct ChatView: View {
             ToolbarItem(placement: .principal) {
                 ChatNavigationTitleView(viewModel: viewModel, modelStore: container.modelStore)
             }
+            if viewModel.isRAGAgent {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        viewModel.setRAGEnabled(!viewModel.ragEnabled)
+                    } label: {
+                        Image(systemName: viewModel.ragEnabled ? "book.pages" : "book.closed")
+                            .foregroundStyle(viewModel.ragEnabled ? .green : .secondary)
+                    }
+                    .disabled(viewModel.isLoading)
+                    .help(viewModel.ragEnabled ? "RAG включён — нажмите, чтобы отключить" : "RAG отключён — нажмите, чтобы включить")
+                }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button(role: .destructive) {
                     viewModel.clearConversation()
