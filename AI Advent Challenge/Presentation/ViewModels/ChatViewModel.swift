@@ -77,7 +77,12 @@ final class ChatViewModel: ObservableObject {
                 while !Task.isCancelled {
                     try? await Task.sleep(nanoseconds: 150_000_000)
                     guard !Task.isCancelled, let self else { break }
-                    self.messages = self.agent.conversation.messages.filter { $0.role != .system }
+                    let agentMessages = self.agent.conversation.messages.filter { $0.role != .system }
+                    // Не перезаписываем messages, пока агент ещё не добавил новые данные
+                    // (иначе оптимистично добавленное сообщение пользователя исчезнет)
+                    if agentMessages.count >= self.messages.count {
+                        self.messages = agentMessages
+                    }
                 }
             }
 
