@@ -10,6 +10,8 @@ import Foundation
 
 final class RAGAgent: BaseAgent {
     private let ragService: RAGService
+    private let agentSystemPrompt: String
+    private let agentConversationId: UUID
     var isRAGEnabled: Bool = true
 
     override var name: String        { "SwiftUI Docs" }
@@ -30,16 +32,19 @@ final class RAGAgent: BaseAgent {
         }
 
         self.ragService = try RAGService(coreMLModelURL: modelURL)
-
-        super.init(
-            sendMessage: sendMessage,
-            persistence: persistence,
-            systemPrompt: """
+        self.agentConversationId = conversationId
+        let prompt = """
             Ты — ассистент по документации SwiftUI. \
             При каждом вопросе тебе будет передан релевантный контекст \
             из базы знаний Apple SwiftUI API. Используй его как основной источник. \
             Если контекст не содержит ответа, скажи об этом и ответь из общих знаний.
-            """,
+            """
+        self.agentSystemPrompt = prompt
+
+        super.init(
+            sendMessage: sendMessage,
+            persistence: persistence,
+            systemPrompt: prompt,
             conversationId: conversationId
         )
 
@@ -67,45 +72,71 @@ final class RAGAgent: BaseAgent {
             return
         }
 
-        guard isRAGEnabled else {
-            try await super.send(text)
-            return
+        // Формируем userMessage: только текущий запрос (без истории) + RAG-контекст если включён
+        let userMessage: String
+        var ragContext: String? = nil
+
+        if isRAGEnabled {
+            let context = await ragService.buildContext(for: text, topK: 3)
+            if !context.isEmpty {
+                ragContext = context
+                userMessage = """
+                    [Контекст из базы знаний SwiftUI:]
+                    \(context)
+
+                    [Вопрос:]
+                    \(text)
+                    """
+            } else {
+                userMessage = text
+            }
+        } else {
+            userMessage = text
         }
 
-        let context = await ragService.buildContext(for: text, topK: 3)
-        guard !context.isEmpty else {
-            try await super.send(text)
-            return
-        }
+        let startTime = Date()
+        let response = try await sendMessage.execute(
+            systemPrompt: agentSystemPrompt,
+            userMessage: userMessage,
+            tools: availableTools,
+            temperature: temperature,
+            maxTokens: maxTokens,
+            stopWords: stopWords
+        )
+        let elapsed = Date().timeIntervalSince(startTime)
 
-        let augmented = """
-        [Контекст из базы знаний SwiftUI:]
-        \(context)
+        // Добавляем оригинальный вопрос пользователя (без RAG-контекста)
+        conversation.messages.append(Message(role: .user, content: text))
 
-        [Вопрос:]
-        \(text)
-        """
-
-        let countBefore = conversation.messages.count
-        try await super.send(augmented)
-
-        // Заменяем augmented-текст оригинальным вопросом пользователя,
-        // а контекст из БД показываем как системное summaryUsage-сообщение.
-        if let idx = conversation.messages[countBefore...].firstIndex(where: { $0.role == .user }) {
-            let original = conversation.messages[idx]
-            conversation.messages[idx] = Message(
-                id: original.id,
-                role: .user,
-                content: text,
-                timestamp: original.timestamp
-            )
-            let ragNote = Message(
+        // Если был RAG-контекст — добавляем как summaryUsage
+        if let context = ragContext {
+            conversation.messages.append(Message(
                 role: .summaryUsage,
                 content: "📚 Контекст из базы знаний SwiftUI:\n\n\(context)"
-            )
-            conversation.messages.insert(ragNote, at: idx + 1)
-            saveConversation()
+            ))
         }
+
+        // Добавляем ответ ассистента
+        let src = response.message
+        conversation.messages.append(Message(
+            role: .assistant,
+            content: src.content,
+            responseTime: elapsed,
+            promptTokens: response.usage?.promptTokens,
+            completionTokens: response.usage?.completionTokens,
+            thoughtsTokens: response.usage?.thoughtsTokens
+        ))
+
+        saveConversation()
+
+        let firstUser = conversation.messages.first(where: { $0.role == .user })?.content
+        let lastMsg = conversation.messages.last(where: { $0.role == .user || $0.role == .assistant })
+        persistence.updateRecord(
+            id: agentConversationId,
+            firstUserMessage: firstUser.map { String($0.prefix(40)) },
+            lastPreview: lastMsg.map { String($0.content.prefix(80)) },
+            lastDate: lastMsg?.timestamp
+        )
     }
 }
 
