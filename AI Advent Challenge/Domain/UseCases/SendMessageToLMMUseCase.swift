@@ -93,7 +93,7 @@ extension SendMessageToLMMInteractor: SendMessageToLMMUseCase {
         conv.addMessage(Message(role: .user, content: userText))
 
         let startTime = Date()
-        var llmMessages = conv.messages.map { $0.toLLMMessage() }
+        var llmMessages = conv.messages.filter { $0.role != .summaryUsage }.map { $0.toLLMMessage() }
         let countBefore = llmMessages.count
         let finalResponse = try await completeResolvingTools(
             messages: &llmMessages,
