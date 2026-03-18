@@ -45,7 +45,7 @@ Domain/
   Models/        — Message, Conversation, ConversationRecord, AgentResponse,
                    ToolDefinition, LLMMessage, LLMResponse
   Protocols/     — Agent, LLMProvider, ToolExecutor, ContextCompressionPolicy
-  Agents/        — BaseAgent (base class), 8 concrete agent classes
+  Agents/        — BaseAgent (base class), 12 concrete agent classes
     Compression/ — SummaryContextCompressionPolicy,
                    SlidingWindowContextCompressionPolicy,
                    StickyFactsCompressionPolicy,
@@ -166,12 +166,6 @@ Supports **invariants** — user-defined constraints enforced across all phases.
 - `.rewrite` — LLM rewrites query to English (`temperature=0.1, maxTokens=100`) → basic search
 - `.full` — rewrite + rerank together
 
-`RAGSearchStats` struct tracks `mode`, `rewrittenQuery?`, `candidateCount`, `finalCount`, `topScores`; formatted as `summaryLine` appended as `.summaryUsage` message prefixed with "📚".
-
-`RAGService.buildContextWithDetails(for:mode:finalK:rewriteQueryProvider:)` — new method that embeds query once, searches candidates, optionally applies MMR via `VectorIndex.mmrSearch(candidates:queryEmbedding:finalK:lambda:minFinalScore:)`, returns `(context, stats)`.
-
-`VectorIndex.mmrSearch` — MMR selection on pre-computed candidates. Iteratively picks the candidate maximising `lambda * relevance - (1-lambda) * redundancy` (redundancy = max dot product with already-selected embeddings). Filters by `minFinalScore`.
-
 **RAG mode switching**: toolbar button opens `.confirmationDialog` showing all 5 modes. Text commands: `rag on`/`rag basic`/`rag реранк`/`rag rerank`/`rag rewrite`/`rag перефраз`/`rag full`/`rag полный`/`rag off`/`rag выкл` (plus `/` prefix variants). Backward compat: `rag on` → `.basic`. `ChatViewModel` exposes `@Published var ragMode: RAGMode` and computed `ragEnabled: Bool { ragMode != .off }`. Icon colors: off=.secondary, basic=.blue, rerank=.orange, rewrite=.green, full=.purple.
 
 ## SendMessageUseCase
@@ -197,30 +191,6 @@ protocol SendMessageToLMMUseCase {
 5. Returns the updated `Conversation`
 
 `DependencyContainer` creates one `SendMessageToLMMInteractor` instance and shares it across all agents for the current model. `BaseAgent` holds `any SendMessageToLMMUseCase` — the protocol allows swapping implementations (e.g. mocks in tests).
-
-## LLM Message Models
-
-Defined in `Domain/Models/LLMMessage.swift`. Separates outgoing and incoming provider data:
-
-**`LLMMessage`** — outgoing message in an API request (`LLMProvider.complete(messages:)`). Contains only fields needed for the request; not used in `Conversation`.
-```swift
-struct LLMMessage {
-    let role: MessageRole      // system / user / assistant / tool
-    let content: String
-    let toolCalls: [ToolCall]? // assistant message with tool call requests
-    let toolCallId: String?    // only for .tool messages (reference to tool call)
-}
-```
-
-**`LLMResponse`** — incoming response from the provider (`AgentResponse.message`). Role is always `.assistant`, so the field is absent; `toolCallId` is impossible in a response.
-```swift
-struct LLMResponse {
-    let content: String
-    let toolCalls: [ToolCall]? // if LLM requests tool execution
-}
-```
-
-`Message.toLLMMessage()` (extension in the same file) converts `Conversation.messages` into `[LLMMessage]` before calling the provider. `SendMessageUseCase` builds the final `Message` from `LLMResponse`, adding `role: .assistant`, `responseTime`, `modelName`, and token counts.
 
 ## LLM Providers & Models
 
@@ -263,7 +233,7 @@ struct ConversationRecord: Identifiable, Codable {
 **`BranchConversationUseCase`** (`Domain/UseCases/`) creates a branched conversation from an existing one: copies the conversation data and any compression policy caches, assigns a new `UUID`, sets `parentId`, and prefixes the title with "↳".
 
 **`DependencyContainer`** key methods:
-- `agentTemplates: [AgentTemplate]` — returns the 8 available agent templates
+- `agentTemplates: [AgentTemplate]` — returns the 12 available agent templates
 - `createConversation(agentKey:)` — creates a new `ConversationRecord` and saves it to the index
 - `makeAgent(record: ConversationRecord)` — instantiates an agent with the given conversation ID
 - `makeChatViewModel(agent:)` — wraps an agent in a `ChatViewModel`
@@ -331,30 +301,7 @@ Summary state (`text` + `messageCount`) persisted to `AgentState/<conversationId
 
 ### KeyValueMemoryExtractor
 
-`Domain/Agents/KeyValueMemoryExtractor.swift` — shared helper encapsulating the full LLM key-value extraction cycle. Used by both `StickyFactsCompressionPolicy` and `TripleMemoryCompressionPolicy`.
-
-```swift
-final class KeyValueMemoryExtractor {
-    private(set) var entries: [String: String]
-    private(set) var processedMessageCount: Int
-
-    init(
-        sendMessage: any SendMessageToLMMUseCase,
-        extractionSystemPrompt: String,   // parametrized per use case
-        persistenceKey: String,           // file saved as AgentState/<key>.json
-        useLargerValueMerge: Bool = true  // true: keep longer value (StickyFacts); false: always replace (WorkingMemory)
-    )
-
-    func update(from conversation: Conversation) async -> UsageInfo?
-    func reset()
-}
-```
-
-On `update(from:)`:
-1. Finds messages not yet processed (`dropFirst(processedMessageCount)`), filtered to user/assistant.
-2. Calls LLM with existing entries + new dialog text; expects flat JSON response.
-3. Merges result into `entries`: with `useLargerValueMerge=true` keeps longer value (prevents truncation of accumulated lists); with `false` always replaces (correct for task-focused working memory).
-4. Updates `processedMessageCount` and persists state on successful JSON parse.
+`Domain/Agents/KeyValueMemoryExtractor.swift` — shared helper encapsulating the full LLM key-value extraction cycle. Used by both `StickyFactsCompressionPolicy` and `TripleMemoryCompressionPolicy`. Calls LLM with existing entries + new dialog text, merges flat JSON result into `entries`. Parameter `useLargerValueMerge`: `true` keeps longer value (StickyFacts), `false` always replaces (WorkingMemory). Persists state to `AgentState/<persistenceKey>.json`.
 
 ### StickyFactsCompressionPolicy
 
@@ -423,10 +370,11 @@ API context sent to LLM:
 
 ## Settings
 
-`SettingsView` + `SettingsViewModel` contain three sections:
+`SettingsView` + `SettingsViewModel` contain four sections:
 1. **LLM Провайдер** — model selection (dismisses sheet on tap)
 2. **Настройка ProxyAPI.ru** — API key management (Keychain)
 3. **Долговременная память** — `TextEditor` bound to `LongTermMemoryStore.text`; «Сохранить» / «Очистить» buttons; available only to `TripleMemoryAgent`
+4. **Danger Zone** — «Очистить все данные» button
 
 `SettingsViewModel` holds a reference to `LongTermMemoryStore` (injected via `DependencyContainer.makeSettingsViewModel()`). `ContentView` passes `container.longTermMemoryStore` to `SettingsView`.
 
@@ -438,7 +386,7 @@ API context sent to LLM:
 
 **`MCPModels`** (`Infrastructure/Network/MCPModels.swift`) — DTO types: `JSONRPCRequest`, `InitializeParams`, `ToolCallParams`, `JSONObject`, `AnyCodableValue` (recursive enum), `MCPTool` (with raw `[String: AnyCodableValue]?` inputSchema and `parameters()` helper), `MCPToolsListResponse`, `MCPToolCallResponse`, `MCPClientError: LocalizedError`.
 
-**«Очистить все данные»** — a fourth "Danger Zone" section with a button that calls `viewModel.clearAllData()`. This deletes all persisted conversation data via `ConversationPersistenceService.deleteAllData()` and resets `LongTermMemoryStore.text` to `""`. A confirmation alert is shown before proceeding.
+**«Очистить все данные»** — calls `viewModel.clearAllData()`: deletes all persisted conversation data via `ConversationPersistenceService.deleteAllData()` and resets `LongTermMemoryStore.text` to `""`. A confirmation alert is shown before proceeding.
 
 ## Adding a New Agent
 
