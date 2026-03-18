@@ -137,13 +137,15 @@ extension SendMessageToLMMInteractor: SendMessageToLMMUseCase {
             LLMMessage(role: .system, content: systemPrompt),
             LLMMessage(role: .user, content: userMessage)
         ]
-        return try await completeResolvingTools(
+        var response = try await completeResolvingTools(
             messages: &messages,
             tools: tools,
             temperature: temperature,
             maxTokens: maxTokens,
             stopWords: stopWords
         )
+        response.modelName = provider.modelName
+        return response
     }
     
 }

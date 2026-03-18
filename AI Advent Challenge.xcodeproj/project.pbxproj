@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		BB0007002F43794C00DEB8B8 /* BAAI_bge-small-en-v1.5.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = BB0004002F43794C00DEB8B8 /* BAAI_bge-small-en-v1.5.mlpackage */; };
+		BB0007002F43794C00DEB8B8 /* AI Advent Challenge/Infrastructure/RAG/BAAI_bge-small-en-v1.5.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = BB0004002F43794C00DEB8B8 /* AI Advent Challenge/Infrastructure/RAG/BAAI_bge-small-en-v1.5.mlpackage */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -25,15 +25,12 @@
 		6D7544552F43794C00DEB8B8 /* AI Advent Challenge.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "AI Advent Challenge.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		6D7544632F43794D00DEB8B8 /* CLAUDE.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CLAUDE.md; sourceTree = SOURCE_ROOT; };
 		AA0001002F43794C00DEB8B8 /* AI Advent Challenge Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "AI Advent Challenge Tests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
-		BB0004002F43794C00DEB8B8 /* BAAI_bge-small-en-v1.5.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "AI Advent Challenge/Infrastructure/RAG/BAAI_bge-small-en-v1.5.mlpackage"; sourceTree = SOURCE_ROOT; };
+		BB0004002F43794C00DEB8B8 /* AI Advent Challenge/Infrastructure/RAG/BAAI_bge-small-en-v1.5.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "AI Advent Challenge/Infrastructure/RAG/BAAI_bge-small-en-v1.5.mlpackage"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		6D7544572F43794C00DEB8B8 /* AI Advent Challenge */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			explicitFileReferences = (
-				BB0004002F43794C00DEB8B8,
-			);
 			path = "AI Advent Challenge";
 			sourceTree = "<group>";
 		};
@@ -62,6 +59,14 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		6D5E50CF2F6B24EA00337032 /* Recovered References */ = {
+			isa = PBXGroup;
+			children = (
+				BB0004002F43794C00DEB8B8 /* AI Advent Challenge/Infrastructure/RAG/BAAI_bge-small-en-v1.5.mlpackage */,
+			);
+			name = "Recovered References";
+			sourceTree = "<group>";
+		};
 		6D75444C2F43794C00DEB8B8 = {
 			isa = PBXGroup;
 			children = (
@@ -70,6 +75,7 @@
 				AA0002002F43794C00DEB8B8 /* AI Advent Challenge Tests */,
 				6D7544562F43794C00DEB8B8 /* Products */,
 				6D7544632F43794D00DEB8B8 /* CLAUDE.md */,
+				6D5E50CF2F6B24EA00337032 /* Recovered References */,
 			);
 			sourceTree = "<group>";
 		};
@@ -174,7 +180,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				BB0007002F43794C00DEB8B8 /* BAAI_bge-small-en-v1.5.mlpackage in Resources */,
+				BB0007002F43794C00DEB8B8 /* AI Advent Challenge/Infrastructure/RAG/BAAI_bge-small-en-v1.5.mlpackage in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

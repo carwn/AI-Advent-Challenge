@@ -14,6 +14,7 @@ struct ChatView: View {
     @State private var highlightedChip: String?
     @State private var chipsContainerWidth: CGFloat = 300
     @State private var scrollPositionID: UUID?
+    @State private var showRAGModeSheet = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -140,14 +141,28 @@ struct ChatView: View {
             }
             if viewModel.isRAGAgent {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        viewModel.setRAGEnabled(!viewModel.ragEnabled)
-                    } label: {
-                        Image(systemName: viewModel.ragEnabled ? "book.pages" : "book.closed")
-                            .foregroundStyle(viewModel.ragEnabled ? .green : .secondary)
+                    Button { showRAGModeSheet = true } label: {
+                        HStack(spacing: 2) {
+                            Image(systemName: viewModel.ragMode == .off ? "book.closed" : "book.pages")
+                                .foregroundStyle(ragModeColor(viewModel.ragMode))
+                            if viewModel.ragMode != .off {
+                                Text(viewModel.ragMode.rawValue)
+                                    .font(.system(size: 9, weight: .semibold))
+                                    .foregroundStyle(ragModeColor(viewModel.ragMode))
+                            }
+                        }
                     }
                     .disabled(viewModel.isLoading)
-                    .help(viewModel.ragEnabled ? "RAG включён — нажмите, чтобы отключить" : "RAG отключён — нажмите, чтобы включить")
+                    .confirmationDialog("Режим RAG", isPresented: $showRAGModeSheet, titleVisibility: .visible) {
+                        ForEach(RAGMode.allCases, id: \.self) { mode in
+                            Button(ragModeLabel(mode)) {
+                                viewModel.setRAGMode(mode)
+                            }
+                        }
+                        Button("Отмена", role: .cancel) {}
+                    } message: {
+                        Text("Текущий режим: \(viewModel.ragMode.displayName)")
+                    }
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
@@ -159,6 +174,28 @@ struct ChatView: View {
                 .disabled(viewModel.isLoading || viewModel.messages.isEmpty)
             }
         }
+    }
+}
+
+// MARK: - RAG helpers
+
+private func ragModeColor(_ mode: RAGMode) -> Color {
+    switch mode {
+    case .off:     return .secondary
+    case .basic:   return .blue
+    case .rerank:  return .orange
+    case .rewrite: return .green
+    case .full:    return .purple
+    }
+}
+
+private func ragModeLabel(_ mode: RAGMode) -> String {
+    switch mode {
+    case .off:     return "off — RAG отключён"
+    case .basic:   return "basic — top-3, cosine"
+    case .rerank:  return "rerank — top-10 → MMR → top-3"
+    case .rewrite: return "rewrite — query → English"
+    case .full:    return "full — rewrite + rerank"
     }
 }
 

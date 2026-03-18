@@ -4,6 +4,7 @@
 //
 //  Агент по документации SwiftUI: перед каждым LLM-вызовом ищет релевантные
 //  фрагменты в базе знаний (chunks.json) через CoreML-эмбеддинги.
+//  Поддерживает 4 режима RAG: basic, rerank, rewrite, full.
 //
 
 import Foundation
@@ -12,12 +13,28 @@ final class RAGAgent: BaseAgent {
     private let ragService: RAGService
     private let agentSystemPrompt: String
     private let agentConversationId: UUID
-    var isRAGEnabled: Bool = true
+    var ragMode: RAGMode = .basic
 
     override var name: String        { "SwiftUI Docs" }
     override var icon: String        { "book.pages" }
     override var description: String { "Поиск по документации SwiftUI API" }
     override var maxTokens: Int      { 1500 }
+
+    // Команды → режим
+    private static let modeCommands: [String: RAGMode] = [
+        "rag on": .basic,     "rag вкл": .basic,
+        "/rag on": .basic,    "/rag вкл": .basic,
+        "rag basic": .basic,  "rag базовый": .basic,
+        "/rag basic": .basic, "/rag базовый": .basic,
+        "rag off": .off,      "rag выкл": .off,
+        "/rag off": .off,     "/rag выкл": .off,
+        "rag rerank": .rerank,  "rag реранк": .rerank,
+        "/rag rerank": .rerank, "/rag реранк": .rerank,
+        "rag rewrite": .rewrite,   "rag перефраз": .rewrite,
+        "/rag rewrite": .rewrite,  "/rag перефраз": .rewrite,
+        "rag full": .full,    "rag полный": .full,
+        "/rag full": .full,   "/rag полный": .full,
+    ]
 
     init(
         sendMessage: any SendMessageToLMMUseCase,
@@ -37,7 +54,8 @@ final class RAGAgent: BaseAgent {
             Ты — ассистент по документации SwiftUI. \
             При каждом вопросе тебе будет передан релевантный контекст \
             из базы знаний Apple SwiftUI API. Используй его как основной источник. \
-            Если контекст не содержит ответа, скажи об этом и ответь из общих знаний.
+            Если контекст не содержит ответа, скажи об этом и ответь из общих знаний. \
+            Всегда отвечай на русском языке, даже если вопрос задан на другом языке или контекст на английском.
             """
         self.agentSystemPrompt = prompt
 
@@ -53,43 +71,46 @@ final class RAGAgent: BaseAgent {
     }
 
     override func send(_ text: String) async throws {
-        // Команды переключения RAG
         let lower = text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-        if lower == "/rag on" || lower == "rag on" || lower == "/rag вкл" || lower == "rag вкл" {
-            isRAGEnabled = true
+
+        // Команды переключения режима RAG
+        if let newMode = Self.modeCommands[lower] {
+            ragMode = newMode
             conversation.messages.append(Message(role: .user, content: text))
-            conversation.messages.append(Message(role: .assistant,
-                content: "✅ RAG включён. Буду использовать базу знаний SwiftUI при ответах."))
-            saveConversation()
-            return
-        }
-        if lower == "/rag off" || lower == "rag off" || lower == "/rag выкл" || lower == "rag выкл" {
-            isRAGEnabled = false
-            conversation.messages.append(Message(role: .user, content: text))
-            conversation.messages.append(Message(role: .assistant,
-                content: "⛔ RAG отключён. Буду отвечать только из общих знаний LLM."))
+            let modeLabel = newMode == .off ? "⛔ RAG отключён" : "✅ RAG режим: \(newMode.displayName)"
+            conversation.messages.append(Message(role: .assistant, content: modeLabel))
             saveConversation()
             return
         }
 
-        // Формируем userMessage: только текущий запрос (без истории) + RAG-контекст если включён
-        let userMessage: String
-        var ragContext: String? = nil
-
-        if isRAGEnabled {
-            let context = await ragService.buildContext(for: text, topK: 3)
-            if !context.isEmpty {
-                ragContext = context
-                userMessage = """
-                    [Контекст из базы знаний SwiftUI:]
-                    \(context)
-
-                    [Вопрос:]
-                    \(text)
-                    """
+        // RAG поиск
+        let ragResult: (context: String, stats: RAGSearchStats)?
+        if ragMode != .off {
+            let provider: ((String) async -> String?)?
+            if ragMode == .rewrite || ragMode == .full {
+                provider = { [weak self] q in await self?.rewriteQuery(q) }
             } else {
-                userMessage = text
+                provider = nil
             }
+            ragResult = await ragService.buildContextWithDetails(
+                for: text,
+                mode: ragMode,
+                rewriteQueryProvider: provider
+            )
+        } else {
+            ragResult = nil
+        }
+
+        // userMessage = RAG context + original question
+        let userMessage: String
+        if let r = ragResult {
+            userMessage = """
+                [SwiftUI Docs Context:]
+                \(r.context)
+
+                [Question:]
+                \(text)
+                """
         } else {
             userMessage = text
         }
@@ -108,11 +129,15 @@ final class RAGAgent: BaseAgent {
         // Добавляем оригинальный вопрос пользователя (без RAG-контекста)
         conversation.messages.append(Message(role: .user, content: text))
 
-        // Если был RAG-контекст — добавляем как summaryUsage
-        if let context = ragContext {
+        // Если был RAG-контекст — добавляем stats + контент чанков как summaryUsage
+        if let r = ragResult {
+            let chunks = r.stats.chunkTexts
+            let numberedContext = chunks.enumerated().map { i, chunk in
+                "▌ Чанк \(i + 1)/\(chunks.count)\n\(chunk)"
+            }.joined(separator: "\n\n")
             conversation.messages.append(Message(
                 role: .summaryUsage,
-                content: "📚 Контекст из базы знаний SwiftUI:\n\n\(context)"
+                content: r.stats.summaryLine + "\n\n" + numberedContext
             ))
         }
 
@@ -122,6 +147,7 @@ final class RAGAgent: BaseAgent {
             role: .assistant,
             content: src.content,
             responseTime: elapsed,
+            modelName: response.modelName,
             promptTokens: response.usage?.promptTokens,
             completionTokens: response.usage?.completionTokens,
             thoughtsTokens: response.usage?.thoughtsTokens
@@ -137,6 +163,32 @@ final class RAGAgent: BaseAgent {
             lastPreview: lastMsg.map { String($0.content.prefix(80)) },
             lastDate: lastMsg?.timestamp
         )
+    }
+
+    // MARK: — Query rewrite
+
+    /// Переформулирует вопрос на английском для улучшения поиска по bge-small-en.
+    private func rewriteQuery(_ query: String) async -> String? {
+        let systemPrompt = """
+            You are a search query optimizer for technical documentation search.
+            Rewrite the given user question into a concise English search query
+            suitable for semantic similarity search in SwiftUI API documentation.
+            Output ONLY the rewritten query, nothing else. No explanations.
+            """
+        do {
+            let response = try await sendMessage.execute(
+                systemPrompt: systemPrompt,
+                userMessage: query,
+                tools: [],
+                temperature: 0.1,
+                maxTokens: 100,
+                stopWords: nil
+            )
+            let result = response.message.content.trimmingCharacters(in: .whitespacesAndNewlines)
+            return result.isEmpty ? nil : result
+        } catch {
+            return nil
+        }
     }
 }
 

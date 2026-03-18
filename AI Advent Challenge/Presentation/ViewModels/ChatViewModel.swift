@@ -14,7 +14,8 @@ final class ChatViewModel: ObservableObject {
     @Published var inputText: String = ""
     @Published var isLoading: Bool = false
     @Published var error: String?
-    @Published var ragEnabled: Bool = false
+    @Published var ragMode: RAGMode = .off
+    var ragEnabled: Bool { ragMode != .off }   // backward compat
 
     var totalPromptTokens: Int { messages.reduce(0) { $0 + ($1.promptTokens ?? 0) } }
     var totalCompletionTokens: Int { messages.reduce(0) { $0 + ($1.completionTokens ?? 0) } }
@@ -29,13 +30,13 @@ final class ChatViewModel: ObservableObject {
     let historyStore: MessageHistoryStore
     private var cancellables = Set<AnyCancellable>()
 
-    func setRAGEnabled(_ value: Bool) {
-        let command = value ? "rag on" : "rag off"
+    func setRAGMode(_ mode: RAGMode) {
+        let command = "rag \(mode.rawValue)"
         isLoading = true
         Task {
             try? await agent.send(command)
             messages = agent.conversation.messages.filter { $0.role != .system }
-            if let ra = agent as? RAGAgent { ragEnabled = ra.isRAGEnabled }
+            if let ra = agent as? RAGAgent { ragMode = ra.ragMode }
             isLoading = false
         }
     }
@@ -44,7 +45,7 @@ final class ChatViewModel: ObservableObject {
         self.agent = agent
         self.historyStore = historyStore
         self.messages = agent.conversation.messages.filter { $0.role != .system }
-        self.ragEnabled = (agent as? RAGAgent)?.isRAGEnabled ?? false
+        self.ragMode = (agent as? RAGAgent)?.ragMode ?? .off
 
         historyStore.objectWillChange
             .sink { [weak self] _ in self?.objectWillChange.send() }
@@ -95,7 +96,7 @@ final class ChatViewModel: ObservableObject {
 
             pollTask.cancel()
             messages = agent.conversation.messages.filter { $0.role != .system }
-            if let ra = agent as? RAGAgent { ragEnabled = ra.isRAGEnabled }
+            if let ra = agent as? RAGAgent { ragMode = ra.ragMode }
             isLoading = false
         }
     }

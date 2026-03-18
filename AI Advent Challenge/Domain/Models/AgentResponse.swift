@@ -12,6 +12,7 @@ struct AgentResponse {
     let requiresToolExecution: Bool
     let finishReason: FinishReason
     let usage: UsageInfo?
+    var modelName: String? = nil
 }
 
 enum FinishReason: String {

@@ -82,4 +82,61 @@ class RAGService: ObservableObject {
             "[\(r.chunk.source) / \(r.chunk.section)]\n\(r.chunk.text)"
         }.joined(separator: "\n\n---\n\n")
     }
+
+    /// Расширенный поиск с поддержкой RAGMode и статистикой
+    func buildContextWithDetails(
+        for query: String,
+        mode: RAGMode,
+        finalK: Int = 3,
+        rewriteQueryProvider: ((String) async -> String?)? = nil
+    ) async -> (context: String, stats: RAGSearchStats)? {
+        guard mode != .off, isReady else { return nil }
+
+        // 1. Query rewrite (для .rewrite, .full)
+        var searchQuery = query
+        var rewrittenQuery: String? = nil
+        if (mode == .rewrite || mode == .full), let provider = rewriteQueryProvider {
+            if let rewritten = await provider(query), !rewritten.isEmpty {
+                rewrittenQuery = rewritten
+                searchQuery = rewritten
+            }
+        }
+
+        // 2. Embed query (один раз)
+        let prefixed = "Represent this sentence for searching: \(searchQuery)"
+        guard let queryEmbedding = try? await embedding.embed(prefixed) else { return nil }
+
+        // 3. Поиск кандидатов
+        let initialK = (mode == .rerank || mode == .full) ? 10 : finalK
+        let minScore: Float = (mode == .rerank || mode == .full) ? 0.2 : 0.25
+        let candidates = index.search(queryEmbedding: queryEmbedding, topK: initialK,
+                                      strategy: nil, minScore: minScore)
+
+        // 4. MMR (для .rerank, .full)
+        let results: [SearchResult]
+        if mode == .rerank || mode == .full {
+            results = index.mmrSearch(candidates: candidates, queryEmbedding: queryEmbedding,
+                                      finalK: finalK, lambda: 0.7, minFinalScore: 0.35)
+        } else {
+            results = candidates
+        }
+
+        guard !results.isEmpty else { return nil }
+
+        let chunkTexts = results.map { r in
+            "[\(r.chunk.source) / \(r.chunk.section)]\n\(r.chunk.text)"
+        }
+        let context = chunkTexts.joined(separator: "\n\n---\n\n")
+
+        let stats = RAGSearchStats(
+            mode: mode,
+            rewrittenQuery: rewrittenQuery,
+            candidateCount: candidates.count,
+            finalCount: results.count,
+            topScores: results.map { $0.score },
+            chunkTexts: chunkTexts
+        )
+
+        return (context, stats)
+    }
 }

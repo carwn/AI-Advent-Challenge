@@ -132,6 +132,62 @@ class VectorIndex {
         }
     }
 
+    // MARK: MMR (Maximal Marginal Relevance)
+
+    /// Диверсифицирует candidates с помощью MMR, возвращает finalK наиболее разнообразных результатов.
+    func mmrSearch(
+        candidates: [SearchResult],
+        queryEmbedding: [Float],
+        finalK: Int = 3,
+        lambda: Float = 0.7,
+        minFinalScore: Float = 0.35
+    ) -> [SearchResult] {
+        guard candidates.count > finalK else { return candidates }
+
+        var selected: [SearchResult] = []
+        var remaining = candidates
+
+        while selected.count < finalK, !remaining.isEmpty {
+            if selected.isEmpty {
+                // Первый — просто самый релевантный
+                selected.append(remaining.removeFirst())
+                continue
+            }
+
+            var bestIdx = 0
+            var bestScore: Float = -.infinity
+            for (i, candidate) in remaining.enumerated() {
+                guard let emb = candidate.chunk.embedding, !emb.isEmpty else { continue }
+                let relevance = candidate.score
+
+                // max similarity к уже выбранным
+                var redundancy: Float = 0
+                for sel in selected {
+                    guard var sEmb = sel.chunk.embedding else { continue }
+                    var cEmb = emb
+                    var dot: Float = 0
+                    let dim = vDSP_Length(min(sEmb.count, cEmb.count))
+                    vDSP_dotpr(&sEmb, 1, &cEmb, 1, &dot, dim)
+                    redundancy = max(redundancy, dot)
+                }
+
+                let mmrScore = lambda * relevance - (1 - lambda) * redundancy
+                if mmrScore > bestScore {
+                    bestScore = mmrScore
+                    bestIdx = i
+                }
+            }
+
+            if bestScore < 0 { break }   // все оставшиеся слишком похожи на выбранные
+            selected.append(remaining.remove(at: bestIdx))
+        }
+
+        return selected
+            .filter { $0.score >= minFinalScore }
+            .enumerated()
+            .map { SearchResult(chunk: $1.chunk, score: $1.score, rank: $0 + 1) }
+    }
+
     // MARK: Утилиты
 
     private func l2Normalize(_ v: [Float]) -> [Float] {
