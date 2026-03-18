@@ -6,13 +6,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **AI Advent Challenge** is an iOS SwiftUI app that lets users chat with AI agents powered by multiple LLM providers (OpenAI, Anthropic, Google Gemini) via ProxyAPI.ru. Users can create multiple named conversations, each tied to one of 11 specialized agents, switch between 10 LLM models, and agents can call tools (weather, calculator, search, Tavily MCP) as part of their responses. Conversations can be branched, creating a tree of forked chats.
 
-## Git
-
-When the user explicitly asks to make a commit:
-1. Run `git diff HEAD` to inspect all staged and unstaged changes.
-2. Update this CLAUDE.md file to reflect any architectural, behavioral, or structural changes introduced by those changes (new agents, new policies, new files, changed patterns, etc.).
-3. Run `git commit` immediately — do not ask for additional confirmation. Show a summary of what will be committed, but proceed without waiting for approval.
-
 ## Build & Run
 
 This is a standard Xcode project with no external package manager (no SPM packages, no Podfile).
