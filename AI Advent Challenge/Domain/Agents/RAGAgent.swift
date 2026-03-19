@@ -20,6 +20,8 @@ final class RAGAgent: BaseAgent {
     override var description: String { "Поиск по документации SwiftUI API" }
     override var maxTokens: Int      { 1500 }
 
+    private static let noKnowledgeThreshold: Float = 0.60
+
     // Команды → режим
     private static let modeCommands: [String: RAGMode] = [
         "rag on": .basic,     "rag вкл": .basic,
@@ -52,10 +54,26 @@ final class RAGAgent: BaseAgent {
         self.agentConversationId = conversationId
         let prompt = """
             Ты — ассистент по документации SwiftUI. \
-            При каждом вопросе тебе будет передан релевантный контекст \
-            из базы знаний Apple SwiftUI API. Используй его как основной источник. \
-            Если контекст не содержит ответа, скажи об этом и ответь из общих знаний. \
-            Всегда отвечай на русском языке, даже если вопрос задан на другом языке или контекст на английском.
+            При каждом вопросе тебе передаётся пронумерованный контекст из базы знаний Apple SwiftUI API.
+
+            ОБЯЗАТЕЛЬНО отвечай строго по следующему шаблону:
+
+            ## Ответ
+            <Твой ответ. Используй ссылки [1], [2], [3] в тексте для указания источников>
+
+            ## Цитаты
+            > "точная цитата из чанка" [N]
+            (минимум 1 цитата из контекста)
+
+            ## Источники
+            [1] source — section
+            [2] source — section
+
+            Правила:
+            — Отвечай ТОЛЬКО на основе предоставленного контекста [1], [2], [3]
+            — Каждый факт должен быть подтверждён цитатой из соответствующего чанка
+            — Всегда отвечай на русском языке, даже если контекст на английском
+            — Если контекст недостаточно релевантен или не содержит ответа — явно скажи об этом
             """
         self.agentSystemPrompt = prompt
 
@@ -101,14 +119,44 @@ final class RAGAgent: BaseAgent {
             ragResult = nil
         }
 
+        // "Не знаю" — если RAG включён, но контекст слабый или пустой
+        if ragMode != .off {
+            let tooWeak = ragResult == nil || (ragResult!.stats.maxScore < Self.noKnowledgeThreshold)
+            if tooWeak {
+                let scoreInfo = ragResult.map { String(format: "%.0f%%", $0.stats.maxScore * 100) } ?? "0%"
+                let reply = """
+                    К сожалению, в базе знаний SwiftUI не найдено достаточно релевантной информации \
+                    для ответа на ваш вопрос (максимальная релевантность: \(scoreInfo)).
+
+                    Пожалуйста, уточните вопрос:
+                    • Укажите конкретный SwiftUI компонент или API (например: `List`, `NavigationStack`, `@State`)
+                    • Опишите, какое именно поведение вас интересует
+                    • Попробуйте переключить режим RAG: `rag rewrite` или `rag full`
+                    """
+                conversation.messages.append(Message(role: .user, content: text))
+                conversation.messages.append(Message(role: .assistant, content: reply))
+                saveConversation()
+                let firstUser = conversation.messages.first(where: { $0.role == .user })?.content
+                let lastMsg = conversation.messages.last(where: { $0.role == .user || $0.role == .assistant })
+                persistence.updateRecord(
+                    id: agentConversationId,
+                    firstUserMessage: firstUser.map { String($0.prefix(40)) },
+                    lastPreview: lastMsg.map { String($0.content.prefix(80)) },
+                    lastDate: lastMsg?.timestamp
+                )
+                return
+            }
+        }
+
         // userMessage = RAG context + original question
         let userMessage: String
         if let r = ragResult {
+            let chunks = r.stats.chunkTexts
             userMessage = """
-                [SwiftUI Docs Context:]
+                [SwiftUI Docs Context — \(chunks.count) источника(ов):]
                 \(r.context)
 
-                [Question:]
+                [Вопрос:]
                 \(text)
                 """
         } else {
@@ -131,9 +179,9 @@ final class RAGAgent: BaseAgent {
 
         // Если был RAG-контекст — добавляем stats + контент чанков как summaryUsage
         if let r = ragResult {
-            let chunks = r.stats.chunkTexts
-            let numberedContext = chunks.enumerated().map { i, chunk in
-                "▌ Чанк \(i + 1)/\(chunks.count)\n\(chunk)"
+            let numberedContext = zip(r.stats.chunkTexts, r.stats.topScores).enumerated().map { i, pair in
+                let (chunkText, score) = pair
+                return "▌ [\(i+1)] score=\(String(format: "%.2f", score))\n\(chunkText)"
             }.joined(separator: "\n\n")
             conversation.messages.append(Message(
                 role: .summaryUsage,

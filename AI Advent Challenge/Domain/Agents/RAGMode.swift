@@ -34,6 +34,11 @@ struct RAGSearchStats {
     let finalCount: Int           // после
     let topScores: [Float]        // оценки чанков, попавших в контекст
     let chunkTexts: [String]      // отдельные чанки для UI (без парсинга строки)
+    let sources: [String]         // "api/accessibilityactioncategory"
+    let sections: [String]        // подсекция (может быть "")
+    let chunkIds: [String]        // "698cd994-0000"
+
+    var maxScore: Float { topScores.max() ?? 0 }
 
     var summaryLine: String {
         var parts = ["📚 Режим: \(mode.displayName)"]

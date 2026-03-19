@@ -123,10 +123,12 @@ class RAGService: ObservableObject {
 
         guard !results.isEmpty else { return nil }
 
-        let chunkTexts = results.map { r in
-            "[\(r.chunk.source) / \(r.chunk.section)]\n\(r.chunk.text)"
+        let chunkTexts = results.enumerated().map { i, r in
+            "[\(i+1)] \(r.chunk.source) / \(r.chunk.section)\n\(r.chunk.text)"
         }
-        let context = chunkTexts.joined(separator: "\n\n---\n\n")
+        let context = results.enumerated().map { i, r in
+            "[\(i+1)] \(r.chunk.source)\n\(r.chunk.text)"
+        }.joined(separator: "\n\n---\n\n")
 
         let stats = RAGSearchStats(
             mode: mode,
@@ -134,7 +136,10 @@ class RAGService: ObservableObject {
             candidateCount: candidates.count,
             finalCount: results.count,
             topScores: results.map { $0.score },
-            chunkTexts: chunkTexts
+            chunkTexts: chunkTexts,
+            sources: results.map { $0.chunk.source },
+            sections: results.map { $0.chunk.section },
+            chunkIds: results.map { $0.chunk.chunkId }
         )
 
         return (context, stats)

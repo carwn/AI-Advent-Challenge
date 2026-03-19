@@ -157,7 +157,7 @@ _(— means BaseAgent default: temperature 0.7, maxTokens 1000, stopWords nil, a
 
 Supports **invariants** — user-defined constraints enforced across all phases. Invariants are stored in `AgentState/<conversationId>_invariants.json` (not deleted on `clearConversation()`). Commands (any phase): `инвариант: <rule>` adds, `инварианты` lists, `удалить инвариант N` removes, `очистить инварианты` clears all. On `idle` phase: a new task is checked against invariants via LLM before decomposition; conflicting tasks are blocked with an explanation. Invariants are also injected into the `decomposeTask()` system prompt so generated steps comply with them.
 
-`RAGAgent` answers questions about SwiftUI API using a built-in knowledge base (~8400 chunks from Apple docs). Each question is handled **statelessly** via `sendMessage.execute(systemPrompt:userMessage:...)` — no conversation history is sent to the LLM, only the system prompt + current question (with optional RAG context). Uses `CoreMLEmbeddingService` with BAAI/bge-small-en-v1.5 (offline, Neural Engine). Resources live in `Infrastructure/RAG/`: `chunks.json` and `vocab.txt` (auto-included by sync group), `BAAI_bge-small-en-v1.5.mlpackage` (explicit PBXFileReference, compiled to `.mlmodelc`). System prompt instructs to always reply in Russian. Stores `agentSystemPrompt` and `agentConversationId` as private properties for direct use in `send()`.
+`RAGAgent` answers questions about SwiftUI API using a built-in knowledge base (~8400 chunks from Apple docs). Each question is handled **statelessly** via `sendMessage.execute(systemPrompt:userMessage:...)` — no conversation history is sent to the LLM, only the system prompt + current question (with optional RAG context). Uses `CoreMLEmbeddingService` with BAAI/bge-small-en-v1.5 (offline, Neural Engine). Resources live in `Infrastructure/RAG/`: `chunks.json` and `vocab.txt` (auto-included by sync group), `BAAI_bge-small-en-v1.5.mlpackage` (explicit PBXFileReference, compiled to `.mlmodelc`). System prompt enforces a structured response template (`## Ответ` / `## Цитаты` / `## Источники`) with mandatory in-text citations `[1]`, `[2]`, `[3]` — LLM must answer strictly from provided context. **Anti-hallucination**: if `ragMode != .off` and `maxScore < noKnowledgeThreshold` (0.60) — `send()` returns a pre-built "не знаю" message without an LLM call. Stores `agentSystemPrompt` and `agentConversationId` as private properties for direct use in `send()`.
 
 **RAG modes** (`RAGMode` enum in `Domain/Agents/RAGMode.swift`, `Codable & CaseIterable`):
 - `.off` — RAG отключён, plain LLM call
@@ -406,6 +406,12 @@ API context sent to LLM:
 5. Register the agent in `DependencyContainer.agentTemplates` and handle its `agentKey` in `makeAgent(record:)`.
 6. If the agent needs a new tool: implement it in `DefaultToolExecutor`, add its `ToolDefinition` factory in `ToolDefinition.swift`, and register it in `canExecute(toolName:)`.
 7. If the agent needs shared long-term memory: add a `LongTermMemoryStore` property to `DependencyContainer` and inject it into the compression policy.
+
+## Claude Code Preferences
+
+- **Инструменты**: при работе с этим проектом использовать MCP Xcode инструменты (`mcp__xcode__XcodeRead`, `mcp__xcode__XcodeWrite`, `mcp__xcode__XcodeUpdate`, `mcp__xcode__BuildProject`, `mcp__xcode__XcodeGrep`, `mcp__xcode__XcodeGlob`) вместо стандартных (`Read`, `Edit`, `Bash xcodebuild`, `Grep`, `Glob`). Если MCP Xcode не справляется — вернуться к стандартным и объяснить почему.
+- **Git**: никогда не коммитить автоматически — всегда показывать summary и ждать явного подтверждения пользователя.
+- **Язык**: всегда отвечать на русском.
 
 ## Adding a New LLM Provider
 
