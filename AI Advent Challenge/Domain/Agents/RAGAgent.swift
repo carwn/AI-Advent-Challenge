@@ -5,6 +5,7 @@
 //  Агент по документации SwiftUI: перед каждым LLM-вызовом ищет релевантные
 //  фрагменты в базе знаний (chunks.json) через CoreML-эмбеддинги.
 //  Поддерживает 4 режима RAG: basic, rerank, rewrite, full.
+//  День 25: история диалога (последние N пар) передаётся в контекст LLM.
 //
 
 import Foundation
@@ -21,6 +22,8 @@ final class RAGAgent: BaseAgent {
     override var maxTokens: Int      { 1500 }
 
     private static let noKnowledgeThreshold: Float = 0.60
+    /// Количество пар user+assistant из истории, передаваемых в контекст LLM
+    private static let historyWindowSize = 3
 
     // Команды → режим
     private static let modeCommands: [String: RAGMode] = [
@@ -54,7 +57,8 @@ final class RAGAgent: BaseAgent {
         self.agentConversationId = conversationId
         let prompt = """
             Ты — ассистент по документации SwiftUI. \
-            При каждом вопросе тебе передаётся пронумерованный контекст из базы знаний Apple SwiftUI API.
+            При каждом вопросе тебе передаётся пронумерованный контекст из базы знаний Apple SwiftUI API, \
+            а также история предыдущих сообщений для связности диалога.
 
             ОБЯЗАТЕЛЬНО отвечай строго по следующему шаблону:
 
@@ -74,6 +78,7 @@ final class RAGAgent: BaseAgent {
             — Каждый факт должен быть подтверждён цитатой из соответствующего чанка
             — Всегда отвечай на русском языке, даже если контекст на английском
             — Если контекст недостаточно релевантен или не содержит ответа — явно скажи об этом
+            — Используй историю диалога для связного продолжения разговора
             """
         self.agentSystemPrompt = prompt
 
@@ -87,6 +92,8 @@ final class RAGAgent: BaseAgent {
         let svc = ragService
         Task { @MainActor in svc.loadIndex() }
     }
+
+    // MARK: - send
 
     override func send(_ text: String) async throws {
         let lower = text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
@@ -102,11 +109,12 @@ final class RAGAgent: BaseAgent {
         }
 
         // RAG поиск
+        let recentHistory = buildRecentHistory()
         let ragResult: (context: String, stats: RAGSearchStats)?
         if ragMode != .off {
             let provider: ((String) async -> String?)?
             if ragMode == .rewrite || ragMode == .full {
-                provider = { [weak self] q in await self?.rewriteQuery(q) }
+                provider = { [weak self] q in await self?.rewriteQuery(q, history: recentHistory) }
             } else {
                 provider = nil
             }
@@ -136,32 +144,13 @@ final class RAGAgent: BaseAgent {
                 conversation.messages.append(Message(role: .user, content: text))
                 conversation.messages.append(Message(role: .assistant, content: reply))
                 saveConversation()
-                let firstUser = conversation.messages.first(where: { $0.role == .user })?.content
-                let lastMsg = conversation.messages.last(where: { $0.role == .user || $0.role == .assistant })
-                persistence.updateRecord(
-                    id: agentConversationId,
-                    firstUserMessage: firstUser.map { String($0.prefix(40)) },
-                    lastPreview: lastMsg.map { String($0.content.prefix(80)) },
-                    lastDate: lastMsg?.timestamp
-                )
+                updateRecord()
                 return
             }
         }
 
-        // userMessage = RAG context + original question
-        let userMessage: String
-        if let r = ragResult {
-            let chunks = r.stats.chunkTexts
-            userMessage = """
-                [SwiftUI Docs Context — \(chunks.count) источника(ов):]
-                \(r.context)
-
-                [Вопрос:]
-                \(text)
-                """
-        } else {
-            userMessage = text
-        }
+        // Строим userMessage: история + RAG контекст + вопрос
+        let userMessage = buildUserMessage(text: text, ragResult: ragResult, history: recentHistory)
 
         let startTime = Date()
         let response = try await sendMessage.execute(
@@ -202,7 +191,49 @@ final class RAGAgent: BaseAgent {
         ))
 
         saveConversation()
+        updateRecord()
+    }
 
+    // MARK: - Private helpers
+
+    /// Последние N пар user+assistant из истории в виде текста.
+    private func buildRecentHistory() -> String? {
+        let relevant = conversation.messages.filter {
+            $0.role == .user || $0.role == .assistant
+        }
+        let windowCount = Self.historyWindowSize * 2
+        guard relevant.count >= 2 else { return nil }
+        let slice = relevant.suffix(min(windowCount, relevant.count))
+        let lines = slice.map { msg -> String in
+            let role = msg.role == .user ? "User" : "Assistant"
+            return "\(role): \(msg.content)"
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    /// Собирает полный userMessage: история + RAG контекст + вопрос.
+    private func buildUserMessage(
+        text: String,
+        ragResult: (context: String, stats: RAGSearchStats)?,
+        history: String?
+    ) -> String {
+        var parts: [String] = []
+
+        if let history {
+            parts.append("[История диалога (последние сообщения):]\n\(history)")
+        }
+
+        if let r = ragResult {
+            parts.append("[SwiftUI Docs Context — \(r.stats.chunkTexts.count) источника(ов):]\n\(r.context)")
+        }
+
+        parts.append("[Текущий вопрос:]\n\(text)")
+
+        return parts.joined(separator: "\n\n")
+    }
+
+    /// Обновляет ConversationRecord метаданные.
+    private func updateRecord() {
         let firstUser = conversation.messages.first(where: { $0.role == .user })?.content
         let lastMsg = conversation.messages.last(where: { $0.role == .user || $0.role == .assistant })
         persistence.updateRecord(
@@ -216,17 +247,30 @@ final class RAGAgent: BaseAgent {
     // MARK: — Query rewrite
 
     /// Переформулирует вопрос на английском для улучшения поиска по bge-small-en.
-    private func rewriteQuery(_ query: String) async -> String? {
+    /// Если передана история — использует её для разрешения кореференций и уточнения контекста.
+    private func rewriteQuery(_ query: String, history: String?) async -> String? {
         let systemPrompt = """
-            You are a search query optimizer for technical documentation search.
-            Rewrite the given user question into a concise English search query
-            suitable for semantic similarity search in SwiftUI API documentation.
+            You are a search query optimizer for SwiftUI API documentation semantic search.
+            Rewrite the user's question into a concise English search query for the bge-small-en embedding model.
+            If conversation history is provided, use it to resolve pronouns, fill in missing context, and make the query self-contained.
             Output ONLY the rewritten query, nothing else. No explanations.
             """
+        let userMessage: String
+        if let history {
+            userMessage = """
+                [Conversation history:]
+                \(history)
+
+                [Current question to rewrite:]
+                \(query)
+                """
+        } else {
+            userMessage = query
+        }
         do {
             let response = try await sendMessage.execute(
                 systemPrompt: systemPrompt,
-                userMessage: query,
+                userMessage: userMessage,
                 tools: [],
                 temperature: 0.1,
                 maxTokens: 100,
