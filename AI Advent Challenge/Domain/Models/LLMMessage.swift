@@ -28,10 +28,12 @@ struct LLMMessage {
 struct LLMResponse {
     let content: String
     let toolCalls: [ToolCall]?
+    let reasoning: String?  // Размышления модели (Ollama, Anthropic thinking и т.д.)
 
-    init(content: String, toolCalls: [ToolCall]? = nil) {
+    init(content: String, toolCalls: [ToolCall]? = nil, reasoning: String? = nil) {
         self.content = content
         self.toolCalls = toolCalls
+        self.reasoning = reasoning
     }
 }
 

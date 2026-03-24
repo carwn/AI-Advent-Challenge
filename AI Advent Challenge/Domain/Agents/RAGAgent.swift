@@ -152,21 +152,10 @@ final class RAGAgent: BaseAgent {
         // Строим userMessage: история + RAG контекст + вопрос
         let userMessage = buildUserMessage(text: text, ragResult: ragResult, history: recentHistory)
 
-        let startTime = Date()
-        let response = try await sendMessage.execute(
-            systemPrompt: agentSystemPrompt,
-            userMessage: userMessage,
-            tools: availableTools,
-            temperature: temperature,
-            maxTokens: maxTokens,
-            stopWords: stopWords
-        )
-        let elapsed = Date().timeIntervalSince(startTime)
-
         // Добавляем оригинальный вопрос пользователя (без RAG-контекста)
         conversation.messages.append(Message(role: .user, content: text))
 
-        // Если был RAG-контекст — добавляем stats + контент чанков как summaryUsage
+        // Если был RAG-контекст — добавляем stats до ответа
         if let r = ragResult {
             let numberedContext = zip(r.stats.chunkTexts, r.stats.topScores).enumerated().map { i, pair in
                 let (chunkText, score) = pair
@@ -178,17 +167,88 @@ final class RAGAgent: BaseAgent {
             ))
         }
 
-        // Добавляем ответ ассистента
-        let src = response.message
-        conversation.messages.append(Message(
-            role: .assistant,
-            content: src.content,
-            responseTime: elapsed,
-            modelName: response.modelName,
-            promptTokens: response.usage?.promptTokens,
-            completionTokens: response.usage?.completionTokens,
-            thoughtsTokens: response.usage?.thoughtsTokens
-        ))
+        // Стримим LLM-ответ (thinking + контент)
+        if sendMessage.supportsStreaming {
+            let thinkingId = UUID()
+            let assistantId = UUID()
+            var hasThinking = false
+            var hasContent = false
+            var thinkingText = ""
+            var contentText = ""
+
+            for try await event in sendMessage.executeStreaming(
+                systemPrompt: agentSystemPrompt,
+                userMessage: userMessage,
+                temperature: temperature,
+                maxTokens: maxTokens,
+                stopWords: stopWords
+            ) {
+                switch event {
+                case .thinkingChunk(let chunk):
+                    thinkingText += chunk
+                    if !hasThinking {
+                        hasThinking = true
+                        conversation.addMessage(Message(id: thinkingId, role: .summaryUsage, content: "🤔 \(thinkingText)"))
+                    } else {
+                        conversation.updateMessageContent(id: thinkingId, content: "🤔 \(thinkingText)")
+                    }
+                case .contentChunk(let chunk):
+                    contentText += chunk
+                    if !hasContent {
+                        hasContent = true
+                        conversation.addMessage(Message(id: assistantId, role: .assistant, content: contentText))
+                    } else {
+                        conversation.updateMessageContent(id: assistantId, content: contentText)
+                    }
+                case .completed(let response, let elapsed):
+                    if hasContent {
+                        if let idx = conversation.messages.firstIndex(where: { $0.id == assistantId }) {
+                            conversation.messages[idx] = Message(
+                                id: assistantId,
+                                role: .assistant,
+                                content: contentText,
+                                responseTime: elapsed,
+                                modelName: response.modelName,
+                                promptTokens: response.usage?.promptTokens,
+                                completionTokens: response.usage?.completionTokens,
+                                thoughtsTokens: response.usage?.thoughtsTokens
+                            )
+                        }
+                    } else {
+                        conversation.addMessage(Message(
+                            role: .assistant,
+                            content: "",
+                            responseTime: elapsed,
+                            modelName: response.modelName,
+                            promptTokens: response.usage?.promptTokens,
+                            completionTokens: response.usage?.completionTokens,
+                            thoughtsTokens: response.usage?.thoughtsTokens
+                        ))
+                    }
+                }
+            }
+        } else {
+            let startTime = Date()
+            let response = try await sendMessage.execute(
+                systemPrompt: agentSystemPrompt,
+                userMessage: userMessage,
+                tools: availableTools,
+                temperature: temperature,
+                maxTokens: maxTokens,
+                stopWords: stopWords
+            )
+            let elapsed = Date().timeIntervalSince(startTime)
+            let src = response.message
+            conversation.messages.append(Message(
+                role: .assistant,
+                content: src.content,
+                responseTime: elapsed,
+                modelName: response.modelName,
+                promptTokens: response.usage?.promptTokens,
+                completionTokens: response.usage?.completionTokens,
+                thoughtsTokens: response.usage?.thoughtsTokens
+            ))
+        }
 
         saveConversation()
         updateRecord()

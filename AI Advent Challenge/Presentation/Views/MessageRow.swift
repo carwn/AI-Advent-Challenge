@@ -23,11 +23,14 @@ struct MessageRow: View {
     private var isInternalMessage: Bool { message.content.hasPrefix("⚙️") }
     private var isPhaseMessage: Bool { message.content.hasPrefix("📍") }
     private var isRAGMessage: Bool { message.content.hasPrefix("📚") }
+    private var isThinkingMessage: Bool { message.content.hasPrefix("🤔") }
 
     @ViewBuilder
     private var summaryUsageRow: some View {
         if isPhaseMessage {
             phaseRow
+        } else if isThinkingMessage {
+            thinkingRow
         } else {
             internalOrCompressionRow
         }
@@ -46,6 +49,41 @@ struct MessageRow: View {
             tealLine
         }
         .padding(.vertical, 4)
+    }
+
+    private var thinkingRow: some View {
+        HStack(alignment: .top, spacing: 6) {
+            Image(systemName: "brain")
+                .font(.caption2)
+                .foregroundStyle(.orange.opacity(0.8))
+                .fixedSize()
+            Text(thinkingContent)
+                .font(.caption2.monospaced())
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.orange.opacity(0.05))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(Color.orange.opacity(0.2), lineWidth: 0.5)
+        )
+        .padding(.horizontal, 8)
+    }
+
+    /// Текст размышлений без эмодзи-префикса
+    private var thinkingContent: String {
+        let raw = message.content
+        if raw.hasPrefix("🤔 ") {
+            return String(raw.dropFirst("🤔 ".count))
+        } else if raw.hasPrefix("🤔") {
+            return String(raw.dropFirst("🤔".count))
+        }
+        return raw
     }
 
     private var internalOrCompressionRow: some View {

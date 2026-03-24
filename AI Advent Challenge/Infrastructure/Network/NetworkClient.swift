@@ -73,4 +73,73 @@ final class NetworkClient {
             throw NetworkError.decodingError(error)
         }
     }
+
+    /// SSE-стриминг: возвращает поток JSON-строк из `data: <json>` строк ответа.
+    /// Завершается автоматически при получении `data: [DONE]` или конца потока.
+    func streamLines<B: Encodable>(
+        endpoint: APIEndpoint,
+        method: HTTPMethod,
+        body: B?,
+        headers: [String: String]
+    ) -> AsyncThrowingStream<String, Error> {
+        AsyncThrowingStream { continuation in
+            Task {
+                do {
+                    var request = URLRequest(url: endpoint.url)
+                    request.httpMethod = method.rawValue
+                    headers.forEach { request.setValue($1, forHTTPHeaderField: $0) }
+                    if let body = body {
+                        request.httpBody = try self.encoder.encode(body)
+                    }
+
+                    self.logger?.logRequest(
+                        method: method.rawValue,
+                        url: endpoint.url,
+                        headers: headers,
+                        body: request.httpBody
+                    )
+
+                    let (asyncBytes, response) = try await self.session.bytes(for: request)
+
+                    guard let httpResponse = response as? HTTPURLResponse else {
+                        let error = NetworkError.invalidResponse
+                        self.logger?.logError(url: endpoint.url, error: error)
+                        continuation.finish(throwing: error)
+                        return
+                    }
+                    guard (200...299).contains(httpResponse.statusCode) else {
+                        let error = NetworkError.httpError(statusCode: httpResponse.statusCode, data: Data())
+                        self.logger?.logError(url: endpoint.url, error: error)
+                        continuation.finish(throwing: error)
+                        return
+                    }
+
+                    let responseHeaders = httpResponse.allHeaderFields.reduce(into: [String: String]()) { acc, pair in
+                        if let key = pair.key as? String, let value = pair.value as? String {
+                            acc[key] = value
+                        }
+                    }
+                    // Логируем начало стрима (тело пустое — данные приходят по частям)
+                    self.logger?.logResponse(
+                        statusCode: httpResponse.statusCode,
+                        url: endpoint.url,
+                        headers: responseHeaders,
+                        body: Data()
+                    )
+
+                    for try await line in asyncBytes.lines {
+                        if Task.isCancelled { break }
+                        guard line.hasPrefix("data: ") else { continue }
+                        let jsonString = String(line.dropFirst(6))
+                        if jsonString == "[DONE]" { break }
+                        continuation.yield(jsonString)
+                    }
+                    continuation.finish()
+                } catch {
+                    self.logger?.logError(url: endpoint.url, error: error)
+                    continuation.finish(throwing: error)
+                }
+            }
+        }
+    }
 }

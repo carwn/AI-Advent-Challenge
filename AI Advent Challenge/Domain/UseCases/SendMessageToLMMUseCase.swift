@@ -7,7 +7,16 @@
 
 import Foundation
 
+/// Единица события потокового ответа, проксируемая из провайдера через use case в агент.
+enum StreamEvent {
+    case thinkingChunk(String)                                  // Токен размышлений
+    case contentChunk(String)                                   // Токен ответа
+    case completed(response: AgentResponse, elapsed: TimeInterval) // Финальные метаданные
+}
+
 protocol SendMessageToLMMUseCase {
+
+    var supportsStreaming: Bool { get }
 
     func execute(
         userText: String,
@@ -27,6 +36,22 @@ protocol SendMessageToLMMUseCase {
         stopWords: [String]?
     ) async throws -> AgentResponse
 
+    func executeStreaming(
+        userText: String,
+        conversation: Conversation,
+        tools: [ToolDefinition],
+        temperature: Double,
+        maxTokens: Int,
+        stopWords: [String]?
+    ) -> AsyncThrowingStream<StreamEvent, Error>
+
+    func executeStreaming(
+        systemPrompt: String,
+        userMessage: String,
+        temperature: Double,
+        maxTokens: Int,
+        stopWords: [String]?
+    ) -> AsyncThrowingStream<StreamEvent, Error>
 }
 
 final class SendMessageToLMMInteractor {
@@ -80,7 +105,9 @@ final class SendMessageToLMMInteractor {
 }
 
 extension SendMessageToLMMInteractor: SendMessageToLMMUseCase {
-    
+
+    var supportsStreaming: Bool { provider.supportsStreaming }
+
     func execute(
         userText: String,
         conversation: Conversation,
@@ -147,5 +174,130 @@ extension SendMessageToLMMInteractor: SendMessageToLMMUseCase {
         response.modelName = provider.modelName
         return response
     }
-    
+
+    func executeStreaming(
+        userText: String,
+        conversation: Conversation,
+        tools: [ToolDefinition],
+        temperature: Double,
+        maxTokens: Int,
+        stopWords: [String]?
+    ) -> AsyncThrowingStream<StreamEvent, Error> {
+        let effectiveMaxTokens = max(maxTokens, provider.minMaxTokens)
+        let llmMessages = conversation.messages
+            .filter { $0.role != .summaryUsage }
+            .map { $0.toLLMMessage() }
+            + [LLMMessage(role: .user, content: userText)]
+
+        let modelName = provider.modelName
+
+        return AsyncThrowingStream { continuation in
+            Task {
+                do {
+                    let startTime = Date()
+                    var accumulatedContent = ""
+                    var accumulatedThinking = ""
+                    var finalUsage: UsageInfo?
+
+                    for try await chunk in self.provider.streamComplete(
+                        messages: llmMessages,
+                        tools: tools.isEmpty ? nil : tools,
+                        temperature: temperature,
+                        maxTokens: effectiveMaxTokens,
+                        stop: stopWords
+                    ) {
+                        switch chunk {
+                        case .thinking(let text):
+                            accumulatedThinking += text
+                            continuation.yield(.thinkingChunk(text))
+                        case .content(let text):
+                            accumulatedContent += text
+                            continuation.yield(.contentChunk(text))
+                        case .usage(let usage):
+                            finalUsage = usage
+                        }
+                    }
+
+                    let elapsed = Date().timeIntervalSince(startTime)
+                    let response = AgentResponse(
+                        message: LLMResponse(
+                            content: accumulatedContent,
+                            toolCalls: nil,
+                            reasoning: accumulatedThinking.isEmpty ? nil : accumulatedThinking
+                        ),
+                        requiresToolExecution: false,
+                        finishReason: .stop,
+                        usage: finalUsage,
+                        modelName: modelName
+                    )
+                    continuation.yield(.completed(response: response, elapsed: elapsed))
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+        }
+    }
+
+    func executeStreaming(
+        systemPrompt: String,
+        userMessage: String,
+        temperature: Double,
+        maxTokens: Int,
+        stopWords: [String]?
+    ) -> AsyncThrowingStream<StreamEvent, Error> {
+        let messages = [
+            LLMMessage(role: .system, content: systemPrompt),
+            LLMMessage(role: .user, content: userMessage)
+        ]
+        let effectiveMaxTokens = max(maxTokens, provider.minMaxTokens)
+        let modelName = provider.modelName
+
+        return AsyncThrowingStream { continuation in
+            Task {
+                do {
+                    let startTime = Date()
+                    var accumulatedContent = ""
+                    var accumulatedThinking = ""
+                    var finalUsage: UsageInfo?
+
+                    for try await chunk in self.provider.streamComplete(
+                        messages: messages,
+                        tools: nil,
+                        temperature: temperature,
+                        maxTokens: effectiveMaxTokens,
+                        stop: stopWords
+                    ) {
+                        switch chunk {
+                        case .thinking(let text):
+                            accumulatedThinking += text
+                            continuation.yield(.thinkingChunk(text))
+                        case .content(let text):
+                            accumulatedContent += text
+                            continuation.yield(.contentChunk(text))
+                        case .usage(let usage):
+                            finalUsage = usage
+                        }
+                    }
+
+                    let elapsed = Date().timeIntervalSince(startTime)
+                    let response = AgentResponse(
+                        message: LLMResponse(
+                            content: accumulatedContent,
+                            toolCalls: nil,
+                            reasoning: accumulatedThinking.isEmpty ? nil : accumulatedThinking
+                        ),
+                        requiresToolExecution: false,
+                        finishReason: .stop,
+                        usage: finalUsage,
+                        modelName: modelName
+                    )
+                    continuation.yield(.completed(response: response, elapsed: elapsed))
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+        }
+    }
 }

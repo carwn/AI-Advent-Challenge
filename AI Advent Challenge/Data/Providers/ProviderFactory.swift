@@ -18,6 +18,7 @@ enum ProviderType: String, CaseIterable {
     case geminiFlashLite = "gemini-2.5-flash-lite"
     case geminiFlash = "gemini-2.5-flash"
     case geminiPro = "gemini-2.5-pro"
+    case ollamaQwen35_4b = "ollama_qwen35_4b"
 
     var displayName: String {
         switch self {
@@ -31,6 +32,7 @@ enum ProviderType: String, CaseIterable {
         case .claudeHaiku: return "Claude Haiku 4.5"
         case .claudeSonnet4: return "Claude Sonnet 4.5"
         case .claudeOpus45: return "Claude Opus 4.5"
+        case .ollamaQwen35_4b: return "Qwen 3.5 4B (Ollama)"
         }
     }
 
@@ -47,6 +49,7 @@ enum ProviderType: String, CaseIterable {
         case .geminiFlashLite: return (26,   129)
         case .geminiFlash:     return (78,   645)
         case .geminiPro:       return (323,  2577)
+        case .ollamaQwen35_4b: return (0,    0)     // Локальная модель, бесплатно
         }
     }
 }
@@ -61,6 +64,11 @@ final class ProviderFactory {
     }
 
     func createProvider(_ type: ProviderType) throws -> LLMProvider {
+        // Ollama не требует API-ключа
+        if case .ollamaQwen35_4b = type {
+            return OllamaProvider(modelName: "qwen3.5:4b", networkClient: networkClient)
+        }
+
         guard let apiKey = try apiKeyManager.getAPIKey(for: .openAI) else {
             throw ProviderError.missingAPIKey("API key not found. Please add it in Settings.")
         }
@@ -85,6 +93,9 @@ final class ProviderFactory {
             return AnthropicProvider(modelName: "claude-sonnet-4-5", networkClient: networkClient, apiKey: apiKey)
         case .claudeOpus45:
             return AnthropicProvider(modelName: "claude-opus-4-5", networkClient: networkClient, apiKey: apiKey)
+        case .ollamaQwen35_4b:
+            // Уже обработан выше, но компилятор требует exhaustive switch
+            return OllamaProvider(modelName: "qwen3.5:4b", networkClient: networkClient)
         }
     }
 }

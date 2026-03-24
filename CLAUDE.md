@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**AI Advent Challenge** is an iOS SwiftUI app that lets users chat with AI agents powered by multiple LLM providers (OpenAI, Anthropic, Google Gemini) via ProxyAPI.ru. Users can create multiple named conversations, each tied to one of 11 specialized agents, switch between 10 LLM models, and agents can call tools (weather, calculator, search, Tavily MCP) as part of their responses. Conversations can be branched, creating a tree of forked chats.
+**AI Advent Challenge** is an iOS SwiftUI app that lets users chat with AI agents powered by multiple LLM providers (OpenAI, Anthropic, Google Gemini via ProxyAPI.ru, and local Ollama). Users can create multiple named conversations, each tied to one of 12 specialized agents, switch between 11 LLM models, and agents can call tools (weather, calculator, search, Tavily MCP) as part of their responses. Conversations can be branched, creating a tree of forked chats. Thinking/reasoning models stream their reasoning process live as a collapsible 🤔 block.
 
 ## Build & Run
 
@@ -60,10 +60,11 @@ Data/
     OpenAI/      — OpenAIProvider (implements LLMProvider), OpenAIModels
     Anthropic/   — AnthropicProvider, AnthropicModels
     Gemini/      — GeminiProvider, GeminiModels
-    ProviderFactory.swift  — ProviderType enum (10 models) + pricing in RUB
+    ProviderFactory.swift  — ProviderType enum (11 models) + pricing in RUB
+    Ollama/        — OllamaProvider, OllamaModels (local models via localhost:11434)
 
 Infrastructure/
-  Network/       — NetworkClient (URLSession-based), APIEndpoint, HTTPMethod,
+  Network/       — NetworkClient (URLSession-based + SSE streamLines()), APIEndpoint, HTTPMethod,
                    NetworkError, NetworkLogger (protocol), OSNetworkLogger
   Security/      — KeychainService, APIKeyManager
   Tools/         — DefaultToolExecutor with mock WeatherService, CalculatorService, SearchService
@@ -116,7 +117,11 @@ protocol Agent: AnyObject {
 **Abstract** (subclass must override, otherwise `fatalError`):
 - `var name: String`, `var icon: String`, `var description: String`
 
-**`send(_:)`** implements the full cycle with compression policy support: compresses context via `compressionPolicy?.compress(conversation)`, calls `sendMessage.execute(...)`, appends only new messages to `conversation`, optionally adds a `.summaryUsage` message if the policy returned `UsageInfo`, saves via persistence, and updates the `ConversationRecord` metadata.
+**`send(_:)`** implements the full cycle with compression policy support: compresses context via `compressionPolicy?.compress(conversation)`, then branches:
+- If `sendMessage.supportsStreaming && availableTools.isEmpty` → **streaming path** via `sendWithStreaming(text:apiConv:summaryUsage:compressionDetails:)`: adds user message, optional compression summaryUsage, then iterates `StreamEvent`s — showing 🤔 thinking block and assistant message live, finalises with metadata on `.completed`.
+- Otherwise → **non-streaming path**: calls `sendMessage.execute(...)`, appends new messages, adds summaryUsage if needed.
+
+**`streamThinkingAndGetResponse(systemPrompt:userMessage:temperature:maxTokens:stopWords:)`** — helper for agents with custom `send()` (MCPAgent, RAGAgent). Streams thinking chunks into conversation as a 🤔 summaryUsage block, accumulates content, and returns the full `AgentResponse`. Falls back to `execute(systemPrompt:userMessage:...)` if provider doesn't support streaming.
 
 **`clearConversation()`** resets `conversation` to the initial systemPrompt, calls `compressionPolicy?.reset()`, and deletes the persistence file.
 
@@ -172,15 +177,22 @@ Supports **invariants** — user-defined constraints enforced across all phases.
 
 `Domain/UseCases/SendMessageToLMMUseCase.swift` — use case encapsulating the full LLM request cycle.
 
-**Protocol** `SendMessageToLMMUseCase` — two methods:
+**Protocol** `SendMessageToLMMUseCase` — методы:
 ```swift
 protocol SendMessageToLMMUseCase {
+    var supportsStreaming: Bool { get }
     // Full cycle with Conversation; returns updated Conversation
     func execute(userText:conversation:tools:temperature:maxTokens:stopWords:) async throws -> Conversation
     // Simplified call without Conversation; returns AgentResponse
     func execute(systemPrompt:userMessage:tools:temperature:maxTokens:stopWords:) async throws -> AgentResponse
+    // Streaming (Conversation-based) — yields thinkingChunk / contentChunk / completed
+    func executeStreaming(userText:conversation:tools:temperature:maxTokens:stopWords:) -> AsyncThrowingStream<StreamEvent, Error>
+    // Streaming (systemPrompt+userMessage) — для агентов с кастомным send()
+    func executeStreaming(systemPrompt:userMessage:temperature:maxTokens:stopWords:) -> AsyncThrowingStream<StreamEvent, Error>
 }
 ```
+
+`StreamEvent` enum: `.thinkingChunk(String)`, `.contentChunk(String)`, `.completed(response: AgentResponse, elapsed: TimeInterval)`.
 
 **Class** `SendMessageToLMMInteractor: SendMessageToLMMUseCase` takes `LLMProvider` and `ToolExecutor` in `init`. `execute(...)` receives only the variable request data:
 
@@ -194,7 +206,7 @@ protocol SendMessageToLMMUseCase {
 
 ## LLM Providers & Models
 
-All requests go through **ProxyAPI.ru** with a single API key. Defined in the `ProviderType` enum with pricing in RUB per 1M tokens:
+Most requests go through **ProxyAPI.ru** with a single API key. Ollama runs locally on `localhost:11434`. Defined in the `ProviderType` enum with pricing in RUB per 1M tokens:
 
 | Model | Input (₽/1M) | Output (₽/1M) | Notes |
 |-------|-------------|--------------|-------|
@@ -208,6 +220,7 @@ All requests go through **ProxyAPI.ru** with a single API key. Defined in the `P
 | gemini-2.5-flash-lite | 26 | 129 | minMaxTokens=0 |
 | gemini-2.5-flash | 78 | 645 | minMaxTokens=8000 |
 | gemini-2.5-pro | 323 | 2 577 | minMaxTokens=8000 |
+| qwen3.5:4b (Ollama) | 0 | 0 | local, supportsStreaming=true, no max_tokens |
 
 Selected model is persisted to `UserDefaults` (`selectedProvider`) via `ModelStore`.
 
@@ -364,7 +377,11 @@ API context sent to LLM:
 
 **Response Time**: `Message.responseTime: TimeInterval?` covers the entire round-trip including tool calls. Displayed in `MessageRow` as "X.X с".
 
-**Network Logging**: `NetworkLogger` protocol with `OSNetworkLogger` implementation (uses `os.Logger`). Injected into `NetworkClient` via `DependencyContainer`.
+**Network Logging**: `NetworkLogger` protocol with `OSNetworkLogger` implementation (uses `os.Logger`). Injected into `NetworkClient` via `DependencyContainer`. Both `request()` and `streamLines()` log requests, responses, and errors.
+
+**Streaming (SSE)**: `NetworkClient.streamLines()` uses `URLSession.bytes(for:)`, parses `data: <json>` lines, stops at `data: [DONE]`. `LLMProvider.streamComplete()` returns `AsyncThrowingStream<StreamChunk, Error>` (`.thinking`, `.content`, `.usage`). Default extension wraps `complete()` for non-streaming providers. `OllamaProvider` overrides with `supportsStreaming = true`; does not send `max_tokens` (local model, no cost limit). `LLMResponse` has `reasoning: String?` for thinking models.
+
+**Thinking block in UI**: `MessageRow` detects `.summaryUsage` messages whose content starts with "🤔" (`isThinkingMessage`) and renders a `thinkingRow` with orange background, `brain` icon, and monospaced text. Thinking blocks are generated live during streaming via `conversation.updateMessageContent(id:content:)` (mutates message in-place by replacing it in the array).
 
 **Message History**: `MessageHistoryStore` stores the last 10 sent messages in `UserDefaults`. `ChatView` shows them as chips above the input field — tap to fill input, ✕ to delete.
 
@@ -419,3 +436,4 @@ API context sent to LLM:
 2. Add endpoint cases to `APIEndpoint.swift`.
 3. Add model cases to `ProviderType` enum in `ProviderFactory.swift` with display name and pricing.
 4. Handle new cases in `ProviderFactory.createProvider()`.
+5. To support streaming: override `supportsStreaming: Bool { true }` and implement `streamComplete()` returning `AsyncThrowingStream<StreamChunk, Error>`. Yield `.thinking(delta)` for reasoning tokens, `.content(delta)` for response tokens, `.usage(info)` for final stats. See `OllamaProvider` as reference. Note: local providers (Ollama) pass `maxTokens: nil` to avoid cutting off responses.

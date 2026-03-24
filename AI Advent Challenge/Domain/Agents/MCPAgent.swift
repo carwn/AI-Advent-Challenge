@@ -100,13 +100,11 @@ final class MCPAgent: BaseAgent {
         while iteration < maxIterations {
             let dispatchResponse: AgentResponse
             do {
-                dispatchResponse = try await sendMessage.execute(
+                dispatchResponse = try await streamThinkingAndGetResponse(
                     systemPrompt: systemPrompt,
                     userMessage: buildDispatchMessage(currentText: text, mcpContext: iterationContext),
-                    tools: [],
                     temperature: 0.2,
-                    maxTokens: 500,
-                    stopWords: nil
+                    maxTokens: 500
                 )
             } catch {
                 appendAssistantMessage("Ошибка LLM: \(error.localizedDescription)")
