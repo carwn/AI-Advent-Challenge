@@ -13,40 +13,55 @@ struct ChatView: View {
     @FocusState private var isInputFocused: Bool
     @State private var highlightedChip: String?
     @State private var chipsContainerWidth: CGFloat = 300
-    @State private var scrollPositionID: UUID?
     @State private var showRAGModeSheet = false
+    @State private var isAtBottom = true
 
     var body: some View {
         VStack(spacing: 0) {
-            ScrollView {
-                // Messages list
-                VStack(spacing: 12) {
-                    ForEach(viewModel.messages) { message in
-                        MessageRow(message: message)
-                            .id(message.id)
-                    }
-
-                    if viewModel.isLoading {
-                        HStack {
-                            ProgressView()
-                            Text("Думаю...")
-                                .foregroundStyle(.secondary)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    // Messages list
+                    VStack(spacing: 12) {
+                        ForEach(viewModel.messages) { message in
+                            MessageRow(message: message)
+                                .id(message.id)
                         }
-                        .padding()
+
+                        if viewModel.isLoading {
+                            HStack {
+                                ProgressView()
+                                Text("Думаю...")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding()
+                        }
+
+                        // Невидимый якорь для скролла вниз
+                        Color.clear.frame(height: 1).id("_bottom")
+                    }
+                    .padding()
+                }
+                // Отслеживаем, находится ли скролл у нижнего края (порог 50pt)
+                .onScrollGeometryChange(for: Bool.self) { geo in
+                    geo.contentSize.height - geo.contentOffset.y - geo.containerSize.height < 50
+                } action: { _, atBottom in
+                    isAtBottom = atBottom
+                }
+                .onAppear {
+                    proxy.scrollTo("_bottom", anchor: .bottom)
+                }
+                // Во время стриминга скроллим только если пользователь не прокрутил вверх
+                .onChange(of: viewModel.messages) { _, _ in
+                    if isAtBottom {
+                        proxy.scrollTo("_bottom", anchor: .bottom)
                     }
                 }
-                .padding()
-            }
-            .scrollPosition(id: $scrollPositionID, anchor: .bottom)
-            .onAppear {
-                scrollPositionID = viewModel.messages.last?.id
-            }
-            .onChange(of: viewModel.messages) { _, messages in
-                scrollPositionID = messages.last?.id
-            }
-            .onChange(of: viewModel.isLoading) { _, isLoading in
-                if isLoading {
-                    scrollPositionID = viewModel.messages.last?.id
+                // При отправке нового сообщения всегда скроллим вниз
+                .onChange(of: viewModel.isLoading) { _, isLoading in
+                    if isLoading {
+                        isAtBottom = true
+                        proxy.scrollTo("_bottom", anchor: .bottom)
+                    }
                 }
             }
 
