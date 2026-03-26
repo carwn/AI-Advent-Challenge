@@ -14,7 +14,8 @@ struct ChatView: View {
     @State private var highlightedChip: String?
     @State private var chipsContainerWidth: CGFloat = 300
     @State private var showRAGModeSheet = false
-    @State private var isAtBottom = true
+    @State private var userScrolledUp = false
+    @State private var isAutoScrolling = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -42,25 +43,40 @@ struct ChatView: View {
                     .padding()
                 }
                 // Отслеживаем, находится ли скролл у нижнего края (порог 50pt)
+                // Отслеживаем offset: если уменьшился — пользователь скроллит вверх.
+                // Не используем DragGesture — он конфликтует с жестами ScrollView и вызывает лаг.
+                .onScrollGeometryChange(for: CGFloat.self) { geo in
+                    geo.contentOffset.y
+                } action: { old, new in
+                    // new < old → offset уменьшился → пользователь скроллит вверх
+                    // isAutoScrolling защищает от срабатывания на наш собственный programmatic scroll
+                    if !isAutoScrolling && new < old - 15 {
+                        userScrolledUp = true
+                    }
+                }
+                // Сбрасываем флаг когда пользователь сам вернулся к нижнему краю
                 .onScrollGeometryChange(for: Bool.self) { geo in
-                    geo.contentSize.height - geo.contentOffset.y - geo.containerSize.height < 50
+                    geo.contentSize.height - geo.contentOffset.y - geo.containerSize.height < 80
                 } action: { _, atBottom in
-                    isAtBottom = atBottom
+                    if atBottom { userScrolledUp = false }
                 }
                 .onAppear {
                     proxy.scrollTo("_bottom", anchor: .bottom)
                 }
-                // Во время стриминга скроллим только если пользователь не прокрутил вверх
+                // Во время стриминга (thinking + ответ) скроллим если пользователь не ушёл вверх
                 .onChange(of: viewModel.messages) { _, _ in
-                    if isAtBottom {
-                        proxy.scrollTo("_bottom", anchor: .bottom)
-                    }
+                    guard !userScrolledUp else { return }
+                    isAutoScrolling = true
+                    withAnimation(nil) { proxy.scrollTo("_bottom", anchor: .bottom) }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { isAutoScrolling = false }
                 }
                 // При отправке нового сообщения всегда скроллим вниз
                 .onChange(of: viewModel.isLoading) { _, isLoading in
                     if isLoading {
-                        isAtBottom = true
-                        proxy.scrollTo("_bottom", anchor: .bottom)
+                        userScrolledUp = false
+                        isAutoScrolling = true
+                        withAnimation(nil) { proxy.scrollTo("_bottom", anchor: .bottom) }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { isAutoScrolling = false }
                     }
                 }
             }

@@ -17,7 +17,6 @@ struct OllamaRequest: Encodable {
     let maxTokens: Int?
     let stop: [String]?
     let stream: Bool
-
     enum CodingKeys: String, CodingKey {
         case model, messages, tools, temperature, stop, stream
         case maxTokens = "max_tokens"

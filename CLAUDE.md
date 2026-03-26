@@ -221,6 +221,9 @@ Most requests go through **ProxyAPI.ru** with a single API key. Ollama runs loca
 | gemini-2.5-flash | 78 | 645 | minMaxTokens=8000 |
 | gemini-2.5-pro | 323 | 2 577 | minMaxTokens=8000 |
 | qwen3.5:4b (Ollama) | 0 | 0 | local, supportsStreaming=true, no max_tokens |
+| qwen3.5:4b-high-temp (Ollama) | 0 | 0 | overrideTemperature=1.5 |
+| qwen3.5:4b-q8 (Ollama) | 0 | 0 | Q8_0 quantization, higher quality |
+| qwen3.5:4b-pirate (Ollama) | 0 | 0 | systemPromptOverride — пиратский стиль |
 
 Selected model is persisted to `UserDefaults` (`selectedProvider`) via `ModelStore`.
 
@@ -379,7 +382,7 @@ API context sent to LLM:
 
 **Network Logging**: `NetworkLogger` protocol with `OSNetworkLogger` implementation (uses `os.Logger`). Injected into `NetworkClient` via `DependencyContainer`. Both `request()` and `streamLines()` log requests, responses, and errors.
 
-**Streaming (SSE)**: `NetworkClient.streamLines()` uses `URLSession.bytes(for:)`, parses `data: <json>` lines, stops at `data: [DONE]`. `LLMProvider.streamComplete()` returns `AsyncThrowingStream<StreamChunk, Error>` (`.thinking`, `.content`, `.usage`). Default extension wraps `complete()` for non-streaming providers. `OllamaProvider` overrides with `supportsStreaming = true`; does not send `max_tokens` (local model, no cost limit). `LLMResponse` has `reasoning: String?` for thinking models.
+**Streaming (SSE)**: `NetworkClient.streamLines()` uses `URLSession.bytes(for:)`, parses `data: <json>` lines, stops at `data: [DONE]`. `LLMProvider.streamComplete()` returns `AsyncThrowingStream<StreamChunk, Error>` (`.thinking`, `.content`, `.usage`). Default extension wraps `complete()` for non-streaming providers. `OllamaProvider` overrides with `supportsStreaming = true`; does not send `max_tokens` (local model, no cost limit). Supports `overrideTemperature: Double?` (replaces agent temperature) and `systemPromptOverride: String?` (replaces system message) for per-model customization via Modelfile variants. `LLMResponse` has `reasoning: String?` for thinking models.
 
 **Thinking block in UI**: `MessageRow` detects `.summaryUsage` messages whose content starts with "🤔" (`isThinkingMessage`) and renders a `thinkingRow` with orange background, `brain` icon, and monospaced text. Thinking blocks are generated live during streaming via `conversation.updateMessageContent(id:content:)` (mutates message in-place by replacing it in the array).
 

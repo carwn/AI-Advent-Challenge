@@ -9,14 +9,25 @@ import Foundation
 
 final class OllamaProvider: LLMProvider {
     let modelName: String
+    let overrideTemperature: Double?
+    let systemPromptOverride: String?
     private let networkClient: NetworkClient
     private let decoder = JSONDecoder()
 
     var supportsStreaming: Bool { true }
 
-    init(modelName: String, networkClient: NetworkClient) {
+    init(modelName: String, networkClient: NetworkClient, overrideTemperature: Double? = nil, systemPromptOverride: String? = nil) {
         self.modelName = modelName
         self.networkClient = networkClient
+        self.overrideTemperature = overrideTemperature
+        self.systemPromptOverride = systemPromptOverride
+    }
+
+    private func applyOverrides(to messages: [LLMMessage]) -> [LLMMessage] {
+        guard let override = systemPromptOverride else { return messages }
+        return messages.map { msg in
+            msg.role == .system ? LLMMessage(role: .system, content: override) : msg
+        }
     }
 
     // MARK: - complete() — non-streaming
@@ -30,9 +41,9 @@ final class OllamaProvider: LLMProvider {
     ) async throws -> AgentResponse {
         let request = OllamaRequest(
             model: modelName,
-            messages: messages.map { $0.toOpenAIMessage() },
+            messages: applyOverrides(to: messages).map { $0.toOpenAIMessage() },
             tools: tools,
-            temperature: temperature,
+            temperature: overrideTemperature ?? temperature,
             maxTokens: nil,  // локальная модель — без ограничений
             stop: stop,
             stream: false
@@ -58,9 +69,9 @@ final class OllamaProvider: LLMProvider {
     ) -> AsyncThrowingStream<StreamChunk, Error> {
         let request = OllamaRequest(
             model: modelName,
-            messages: messages.map { $0.toOpenAIMessage() },
+            messages: applyOverrides(to: messages).map { $0.toOpenAIMessage() },
             tools: tools,
-            temperature: temperature,
+            temperature: overrideTemperature ?? temperature,
             maxTokens: nil,  // локальная модель — без ограничений
             stop: stop,
             stream: true

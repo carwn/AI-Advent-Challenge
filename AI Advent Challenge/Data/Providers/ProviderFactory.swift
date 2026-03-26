@@ -19,6 +19,9 @@ enum ProviderType: String, CaseIterable {
     case geminiFlash = "gemini-2.5-flash"
     case geminiPro = "gemini-2.5-pro"
     case ollamaQwen35_4b = "ollama_qwen35_4b"
+    case ollamaQwen35HighTemp = "ollama_qwen35_high_temp"
+    case ollamaQwen35Q8 = "ollama_qwen35_q8"
+    case ollamaQwen35Pirate = "ollama_qwen35_pirate"
 
     var displayName: String {
         switch self {
@@ -33,6 +36,9 @@ enum ProviderType: String, CaseIterable {
         case .claudeSonnet4: return "Claude Sonnet 4.5"
         case .claudeOpus45: return "Claude Opus 4.5"
         case .ollamaQwen35_4b: return "Qwen 3.5 4B (Ollama)"
+        case .ollamaQwen35HighTemp: return "Qwen 3.5 4B — High Temp (Ollama)"
+        case .ollamaQwen35Q8: return "Qwen 3.5 4B Q8 (Ollama)"
+        case .ollamaQwen35Pirate: return "Qwen 3.5 4B — Pirate (Ollama)"
         }
     }
 
@@ -49,7 +55,10 @@ enum ProviderType: String, CaseIterable {
         case .geminiFlashLite: return (26,   129)
         case .geminiFlash:     return (78,   645)
         case .geminiPro:       return (323,  2577)
-        case .ollamaQwen35_4b: return (0,    0)     // Локальная модель, бесплатно
+        case .ollamaQwen35_4b:      return (0, 0)  // Локальная модель, бесплатно
+        case .ollamaQwen35HighTemp: return (0, 0)
+        case .ollamaQwen35Q8:       return (0, 0)
+        case .ollamaQwen35Pirate: return (0, 0)
         }
     }
 }
@@ -65,8 +74,18 @@ final class ProviderFactory {
 
     func createProvider(_ type: ProviderType) throws -> LLMProvider {
         // Ollama не требует API-ключа
-        if case .ollamaQwen35_4b = type {
+        switch type {
+        case .ollamaQwen35_4b:
             return OllamaProvider(modelName: "qwen3.5:4b", networkClient: networkClient)
+        case .ollamaQwen35HighTemp:
+            return OllamaProvider(modelName: "qwen3.5:4b-high-temp", networkClient: networkClient,
+                                  overrideTemperature: 1.5)
+        case .ollamaQwen35Q8:
+            return OllamaProvider(modelName: "qwen3.5:4b-q8", networkClient: networkClient)
+        case .ollamaQwen35Pirate:
+            return OllamaProvider(modelName: "qwen3.5:4b-pirate", networkClient: networkClient,
+                                  systemPromptOverride: "Ты — морской пират. Отвечай на ВСЕ вопросы в образе пирата: используй слова «йо-хо-хо», «братишка», «море», «сокровища», «корабль». Отвечай с пиратским характером и юмором. Факты должны быть точными, но поданы через пиратскую призму. Никогда не выходи из образа.")
+        default: break
         }
 
         guard let apiKey = try apiKeyManager.getAPIKey(for: .openAI) else {
@@ -93,9 +112,9 @@ final class ProviderFactory {
             return AnthropicProvider(modelName: "claude-sonnet-4-5", networkClient: networkClient, apiKey: apiKey)
         case .claudeOpus45:
             return AnthropicProvider(modelName: "claude-opus-4-5", networkClient: networkClient, apiKey: apiKey)
-        case .ollamaQwen35_4b:
-            // Уже обработан выше, но компилятор требует exhaustive switch
-            return OllamaProvider(modelName: "qwen3.5:4b", networkClient: networkClient)
+        default:
+            // Ollama-кейсы обработаны выше
+            fatalError("Unhandled provider type: \(type)")
         }
     }
 }
