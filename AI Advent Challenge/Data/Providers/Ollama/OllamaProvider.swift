@@ -9,6 +9,7 @@ import Foundation
 
 final class OllamaProvider: LLMProvider {
     let modelName: String
+    let host: String
     let overrideTemperature: Double?
     let systemPromptOverride: String?
     private let networkClient: NetworkClient
@@ -16,8 +17,9 @@ final class OllamaProvider: LLMProvider {
 
     var supportsStreaming: Bool { true }
 
-    init(modelName: String, networkClient: NetworkClient, overrideTemperature: Double? = nil, systemPromptOverride: String? = nil) {
+    init(modelName: String, networkClient: NetworkClient, host: String = "localhost", overrideTemperature: Double? = nil, systemPromptOverride: String? = nil) {
         self.modelName = modelName
+        self.host = host
         self.networkClient = networkClient
         self.overrideTemperature = overrideTemperature
         self.systemPromptOverride = systemPromptOverride
@@ -50,7 +52,7 @@ final class OllamaProvider: LLMProvider {
         )
 
         let response: OllamaResponse = try await networkClient.request(
-            endpoint: .ollamaChatCompletion,
+            endpoint: .ollamaChatCompletion(host: host),
             method: .post,
             body: request,
             headers: ["Content-Type": "application/json"]
@@ -83,7 +85,7 @@ final class OllamaProvider: LLMProvider {
                     var finalUsage: UsageInfo?
 
                     let lineStream = self.networkClient.streamLines(
-                        endpoint: .ollamaChatCompletion,
+                        endpoint: .ollamaChatCompletion(host: host),
                         method: .post,
                         body: request,
                         headers: ["Content-Type": "application/json"]

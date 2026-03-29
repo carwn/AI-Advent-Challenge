@@ -22,6 +22,8 @@ enum ProviderType: String, CaseIterable {
     case ollamaQwen35HighTemp = "ollama_qwen35_high_temp"
     case ollamaQwen35Q8 = "ollama_qwen35_q8"
     case ollamaQwen35Pirate = "ollama_qwen35_pirate"
+    case ollamaWinQwen35_4b = "ollama_win_qwen35_4b"
+    case ollamaWinQwen3_14b = "ollama_win_qwen3_14b"
 
     var displayName: String {
         switch self {
@@ -39,6 +41,8 @@ enum ProviderType: String, CaseIterable {
         case .ollamaQwen35HighTemp: return "Qwen 3.5 4B — High Temp (Ollama)"
         case .ollamaQwen35Q8: return "Qwen 3.5 4B Q8 (Ollama)"
         case .ollamaQwen35Pirate: return "Qwen 3.5 4B — Pirate (Ollama)"
+        case .ollamaWinQwen35_4b: return "Qwen 3.5 4B (Win PC)"
+        case .ollamaWinQwen3_14b: return "Qwen 3 14B (Win PC)"
         }
     }
 
@@ -58,7 +62,9 @@ enum ProviderType: String, CaseIterable {
         case .ollamaQwen35_4b:      return (0, 0)  // Локальная модель, бесплатно
         case .ollamaQwen35HighTemp: return (0, 0)
         case .ollamaQwen35Q8:       return (0, 0)
-        case .ollamaQwen35Pirate: return (0, 0)
+        case .ollamaQwen35Pirate:   return (0, 0)
+        case .ollamaWinQwen35_4b:   return (0, 0)
+        case .ollamaWinQwen3_14b:   return (0, 0)
         }
     }
 }
@@ -85,6 +91,10 @@ final class ProviderFactory {
         case .ollamaQwen35Pirate:
             return OllamaProvider(modelName: "qwen3.5:4b-pirate", networkClient: networkClient,
                                   systemPromptOverride: "Ты — морской пират. Отвечай на ВСЕ вопросы в образе пирата: используй слова «йо-хо-хо», «братишка», «море», «сокровища», «корабль». Отвечай с пиратским характером и юмором. Факты должны быть точными, но поданы через пиратскую призму. Никогда не выходи из образа.")
+        case .ollamaWinQwen35_4b:
+            return OllamaProvider(modelName: "qwen3.5:4b", networkClient: networkClient, host: "192.168.1.141")
+        case .ollamaWinQwen3_14b:
+            return OllamaProvider(modelName: "qwen3:14b", networkClient: networkClient, host: "192.168.1.141")
         default: break
         }
 
