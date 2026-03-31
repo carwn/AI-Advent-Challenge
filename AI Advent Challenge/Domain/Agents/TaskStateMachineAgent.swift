@@ -73,8 +73,7 @@ final class TaskStateMachineAgent: BaseAgent {
         self.agentConversationId = conversationId
         self.taskState = TaskState()
 
-        let appSupport = FileManager.default
-            .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let appSupport = FileManager.default.appSupportDirectory
         self.taskStateFileURL = appSupport
             .appendingPathComponent("AgentState/\(conversationId.uuidString)_task_state.json")
         self.invariantsFileURL = appSupport

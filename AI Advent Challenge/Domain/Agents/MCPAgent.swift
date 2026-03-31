@@ -58,7 +58,7 @@ final class MCPAgent: BaseAgent {
         self.agentConversationId = conversationId
         self.currentModelName = modelName
 
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let appSupport = FileManager.default.appSupportDirectory
         self.tasksFileURL = appSupport.appendingPathComponent("AgentState/\(conversationId.uuidString)_mcp_tasks.json")
 
         super.init(

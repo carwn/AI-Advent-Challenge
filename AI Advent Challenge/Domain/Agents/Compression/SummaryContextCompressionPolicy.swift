@@ -30,8 +30,7 @@ final class SummaryContextCompressionPolicy: ContextCompressionPolicy {
     ) {
         self.sendMessage = sendMessage
         self.summaryTriggerTokens = summaryTriggerTokens
-        self.stateFileURL = FileManager.default
-            .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        self.stateFileURL = FileManager.default.appSupportDirectory
             .appendingPathComponent("AgentState/\(persistenceKey)_summary.json")
         loadState()
     }

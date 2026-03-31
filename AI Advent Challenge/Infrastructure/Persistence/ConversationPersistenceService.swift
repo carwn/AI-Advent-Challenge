@@ -12,8 +12,7 @@ final class ConversationPersistenceService {
     private let indexURL: URL
 
     init() {
-        let appSupport = FileManager.default
-            .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let appSupport = FileManager.default.appSupportDirectory
         baseURL = appSupport.appendingPathComponent("AgentState", isDirectory: true)
         indexURL = baseURL.appendingPathComponent("conversations_index.json")
         try? FileManager.default.createDirectory(at: baseURL, withIntermediateDirectories: true)

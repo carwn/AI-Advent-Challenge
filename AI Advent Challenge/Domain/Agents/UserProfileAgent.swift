@@ -90,8 +90,7 @@ final class UserProfileAgent: BaseAgent {
         self.longTermMemoryStore = longTermMemoryStore
         self.profilingState = ProfilingState()
 
-        let appSupport = FileManager.default
-            .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let appSupport = FileManager.default.appSupportDirectory
         self.profileStateFileURL = appSupport
             .appendingPathComponent("AgentState/\(conversationId.uuidString)_profile.json")
 
