@@ -73,12 +73,11 @@ final class TaskStateMachineAgent: BaseAgent {
         self.agentConversationId = conversationId
         self.taskState = TaskState()
 
-        let appSupport = FileManager.default.appSupportDirectory
-            ?? URL(fileURLWithPath: NSTemporaryDirectory())
-        self.taskStateFileURL = appSupport
-            .appendingPathComponent("AgentState/\(conversationId.uuidString)_task_state.json")
-        self.invariantsFileURL = appSupport
-            .appendingPathComponent("AgentState/\(conversationId.uuidString)_invariants.json")
+        let stateDir = FileManager.default.agentStateDirectory()
+        self.taskStateFileURL = stateDir
+            .appendingPathComponent("\(conversationId.uuidString)_task_state.json")
+        self.invariantsFileURL = stateDir
+            .appendingPathComponent("\(conversationId.uuidString)_invariants.json")
 
         let systemPrompt = """
         Ты — менеджер задач, помогающий пользователю достигать целей пошагово. \
