@@ -1,0 +1,56 @@
+name: AI Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  review:
+    runs-on: macos-latest
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get PR diff
+        run: |
+          git fetch origin ${{ github.base_ref }}
+          git diff origin/${{ github.base_ref }}...HEAD > /tmp/pr.diff
+          echo "Diff size: $(wc -l < /tmp/pr.diff) lines"
+
+      - name: Cache Hugging Face models
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-minilm-l6-v2
+
+      - name: Install Python dependencies
+        run: pip3 install --break-system-packages sentence-transformers numpy
+
+      - name: Clone dev-assistant
+        run: git clone https://github.com/carwn/dev-assistant.git /tmp/dev-assistant
+
+      - name: Build dev-assistant
+        run: swift build -c release --package-path /tmp/dev-assistant
+
+      - name: Run AI Review
+        env:
+          PROXYAPI_KEY: ${{ secrets.PROXYAPI_KEY }}
+        run: |
+          /tmp/dev-assistant/.build/release/DevAssistant \
+            --project "${{ github.workspace }}" \
+            --scripts /tmp/dev-assistant/Scripts \
+            --review \
+            --diff-file /tmp/pr.diff > /tmp/review.txt
+
+      - name: Post review comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr comment ${{ github.event.pull_request.number }} \
+            --body "$(cat /tmp/review.txt)" \
+            --repo ${{ github.repository }}
