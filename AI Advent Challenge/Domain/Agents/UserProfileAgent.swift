@@ -91,6 +91,7 @@ final class UserProfileAgent: BaseAgent {
         self.profilingState = ProfilingState()
 
         let appSupport = FileManager.default.appSupportDirectory
+            ?? URL(fileURLWithPath: NSTemporaryDirectory())
         self.profileStateFileURL = appSupport
             .appendingPathComponent("AgentState/\(conversationId.uuidString)_profile.json")
 

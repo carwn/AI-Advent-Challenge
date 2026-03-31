@@ -6,13 +6,11 @@
 import Foundation
 
 extension FileManager {
-    /// Returns the Application Support directory for the current user.
+    /// Returns the Application Support directory for the current user, or `nil` if unavailable.
     ///
-    /// On iOS/macOS this directory always exists, so a missing URL is treated as a programmer error.
-    var appSupportDirectory: URL {
-        guard let url = urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
-            fatalError("Application Support directory not found — this should never happen on iOS/macOS")
-        }
-        return url
+    /// On iOS/macOS this directory is always present, but returning `nil` allows callers to
+    /// handle edge cases gracefully (e.g. unit tests with a custom sandbox).
+    var appSupportDirectory: URL? {
+        urls(for: .applicationSupportDirectory, in: .userDomainMask).first
     }
 }

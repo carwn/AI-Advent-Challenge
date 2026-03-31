@@ -92,6 +92,7 @@ final class SolverAgent: BaseAgent {
         self.solverState = SolverState()
 
         let appSupport = FileManager.default.appSupportDirectory
+            ?? URL(fileURLWithPath: NSTemporaryDirectory())
         self.solverStateFileURL = appSupport
             .appendingPathComponent("AgentState/\(conversationId.uuidString)_solver_state.json")
         self.invariantsFileURL = appSupport

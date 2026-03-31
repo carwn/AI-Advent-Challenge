@@ -16,6 +16,7 @@ final class LongTermMemoryStore: ObservableObject {
 
     init(agentKey: String) {
         let appSupport = FileManager.default.appSupportDirectory
+            ?? URL(fileURLWithPath: NSTemporaryDirectory())
         let dir = appSupport.appendingPathComponent("AgentState", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         fileURL = dir.appendingPathComponent("long_term_memory_\(agentKey).txt")

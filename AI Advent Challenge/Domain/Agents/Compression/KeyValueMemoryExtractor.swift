@@ -35,6 +35,7 @@ final class KeyValueMemoryExtractor {
         self.extractionSystemPrompt = extractionSystemPrompt
         self.useLargerValueMerge = useLargerValueMerge
         let appSupport = FileManager.default.appSupportDirectory
+            ?? URL(fileURLWithPath: NSTemporaryDirectory())
         self.stateFileURL = appSupport
             .appendingPathComponent("AgentState/\(persistenceKey).json")
         loadState()

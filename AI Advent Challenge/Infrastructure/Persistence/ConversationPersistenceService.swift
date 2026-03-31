@@ -13,6 +13,7 @@ final class ConversationPersistenceService {
 
     init() {
         let appSupport = FileManager.default.appSupportDirectory
+            ?? URL(fileURLWithPath: NSTemporaryDirectory())
         baseURL = appSupport.appendingPathComponent("AgentState", isDirectory: true)
         indexURL = baseURL.appendingPathComponent("conversations_index.json")
         try? FileManager.default.createDirectory(at: baseURL, withIntermediateDirectories: true)
