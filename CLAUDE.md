@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**AI Advent Challenge** is an iOS SwiftUI app that lets users chat with AI agents powered by multiple LLM providers (OpenAI, Anthropic, Google Gemini via ProxyAPI.ru, and local Ollama). Users can create multiple named conversations, each tied to one of 12 specialized agents, switch between 11 LLM models, and agents can call tools (weather, calculator, search, Tavily MCP) as part of their responses. Conversations can be branched, creating a tree of forked chats. Thinking/reasoning models stream their reasoning process live as a collapsible 🤔 block.
+**AI Advent Challenge** is an iOS SwiftUI app that lets users chat with AI agents powered by multiple LLM providers (OpenAI, Anthropic, Google Gemini via ProxyAPI.ru, and local Ollama). Users can create multiple named conversations, each tied to one of 12 specialized agents, switch between 16 models (10 cloud + 6 local Ollama), and agents can call tools (weather, calculator, search, Tavily MCP) as part of their responses. Conversations can be branched, creating a tree of forked chats. Thinking/reasoning models stream their reasoning process live as a collapsible 🤔 block.
 
 ## Build & Run
 
@@ -36,6 +36,16 @@ xcodebuild -project "AI Advent Challenge.xcodeproj" -scheme "AI Advent Challenge
 
 **API key**: Tests read the key from `AI Advent Challenge Tests/Secrets.txt` (gitignored). The file contains the raw key on a single line. As a fallback, the env var `TEST_API_KEY` is also checked. If neither is present, tests are skipped (`XCTSkip`), not failed.
 
+## CI/CD
+
+GitHub Actions workflow at `.github/workflows/ai-review.yml` runs on every pull request (opened, synchronize, reopened):
+
+1. Gets the PR diff (`git diff origin/<base>...HEAD`)
+2. Clones the `carwn/dev-assistant` repo, builds it with Swift, runs the `--review` command against the diff
+3. Posts the AI review result as a PR comment via `gh pr comment`
+
+Requires `PROXYAPI_KEY` GitHub Actions secret. The workflow uses `macos-latest` and caches the Hugging Face MiniLM model to speed up subsequent runs.
+
 ## Architecture
 
 The project follows **Clean Architecture** with these layers (all under `AI Advent Challenge/`):
@@ -60,18 +70,23 @@ Data/
     OpenAI/      — OpenAIProvider (implements LLMProvider), OpenAIModels
     Anthropic/   — AnthropicProvider, AnthropicModels
     Gemini/      — GeminiProvider, GeminiModels
-    ProviderFactory.swift  — ProviderType enum (11 models) + pricing in RUB
+    ProviderFactory.swift  — ProviderType enum (16 models: 10 cloud + 6 local) + pricing in RUB
     Ollama/        — OllamaProvider, OllamaModels (local models via localhost:11434)
 
 Infrastructure/
   Network/       — NetworkClient (URLSession-based + SSE streamLines()), APIEndpoint, HTTPMethod,
-                   NetworkError, NetworkLogger (protocol), OSNetworkLogger
+                   NetworkError, NetworkLogger (protocol), OSNetworkLogger,
+                   MCPClient (JSON-RPC 2.0 MCP client, Streamable HTTP + SSE),
+                   MCPModels (DTOs: JSONRPCRequest, MCPTool, AnyCodableValue, etc.)
   Security/      — KeychainService, APIKeyManager
   Tools/         — DefaultToolExecutor with mock WeatherService, CalculatorService, SearchService
   Persistence/   — ConversationPersistenceService (save/load/delete Conversation JSON by UUID)
+  RAG/           — RAGService (façade), EmbeddingService (protocol), VectorIndex (~8400 chunks),
+                   BertTokenizer, chunks.json, vocab.txt, BAAI_bge-small-en-v1.5.mlpackage
 
 Presentation/
-  Views/         — ContentView, ChatView, AgentSelectionView, SettingsView, MessageRow
+  Views/         — ContentView, ChatView, AgentSelectionView, SettingsView, MessageRow,
+                   AppIconView (1024×1024 icon preview for Xcode Canvas)
   ViewModels/    — ChatViewModel, AgentSelectionViewModel, SettingsViewModel,
                    MessageHistoryStore, ModelStore (@MainActor)
 
