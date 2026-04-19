@@ -166,6 +166,14 @@ struct ChatView: View {
             .background(Color(uiColor: .systemBackground))
         }
         .navigationBarTitleDisplayMode(.inline)
+        .alert("Ошибка", isPresented: .init(
+            get: { viewModel.error != nil },
+            set: { if !$0 { viewModel.error = nil } }
+        )) {
+            Button("OK") {}
+        } message: {
+            Text(viewModel.error ?? "")
+        }
         .toolbar {
             ToolbarItem(placement: .principal) {
                 ChatNavigationTitleView(viewModel: viewModel, modelStore: container.modelStore)
