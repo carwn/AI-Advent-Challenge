@@ -30,6 +30,8 @@ final class DefaultToolExecutor: ToolExecutor {
             return calculatorService != nil
         case "search":
             return searchService != nil
+        case "save_note", "list_notes":
+            return true
         default:
             return false
         }
@@ -46,6 +48,10 @@ final class DefaultToolExecutor: ToolExecutor {
             return try executeCalculate(arguments: arguments)
         case "search":
             return try await executeSearch(arguments: arguments)
+        case "save_note":
+            return try executeSaveNote(arguments: arguments)
+        case "list_notes":
+            return executeListNotes()
         default:
             throw ToolExecutionError.unsupportedTool(functionName)
         }
@@ -95,6 +101,45 @@ final class DefaultToolExecutor: ToolExecutor {
         let results = try await service.search(query: params.query)
         return results.toJSON()
     }
+
+    private func executeSaveNote(arguments: String) throws -> String {
+        guard let data = arguments.data(using: .utf8),
+              let params = try? JSONDecoder().decode(NoteParams.self, from: data) else {
+            throw ToolExecutionError.invalidArguments(arguments)
+        }
+
+        let notesDir = FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask)
+            .first!
+            .appendingPathComponent("AgentState/notes")
+
+        try FileManager.default.createDirectory(at: notesDir, withIntermediateDirectories: true)
+
+        let fileURL = notesDir.appendingPathComponent("\(params.title).txt")
+        try params.content.write(to: fileURL, atomically: true, encoding: .utf8)
+
+        let result = "{\"success\": true, \"message\": \"Заметка '\(params.title)' сохранена\"}"
+        return result
+    }
+
+    private func executeListNotes() -> String {
+        let notesDir = FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask)
+            .first!
+            .appendingPathComponent("AgentState/notes")
+
+        guard let files = try? FileManager.default.contentsOfDirectory(atPath: notesDir.path) else {
+            return "{\"notes\": []}"
+        }
+
+        let txtFiles = files.filter { $0.hasSuffix(".txt") }.sorted()
+        let encoder = JSONEncoder()
+        let jsonData = try? encoder.encode(["notes": txtFiles])
+        if let data = jsonData, let json = String(data: data, encoding: .utf8) {
+            return json
+        }
+        return "{\"notes\": []}"
+    }
 }
 
 // MARK: - Errors
@@ -129,6 +174,11 @@ struct CalculatorParams: Codable {
 
 struct SearchParams: Codable {
     let query: String
+}
+
+struct NoteParams: Codable {
+    let title: String
+    let content: String
 }
 
 // MARK: - Tool Service Protocols

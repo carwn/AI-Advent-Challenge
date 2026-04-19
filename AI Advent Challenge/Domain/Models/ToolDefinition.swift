@@ -113,4 +113,47 @@ struct ToolDefinition: Codable {
             )
         )
     }
+
+    static func saveNote() -> ToolDefinition {
+        ToolDefinition(
+            type: "function",
+            function: FunctionDefinition(
+                name: "save_note",
+                description: "Сохраняет текстовую заметку с заданным заголовком и содержимым",
+                parameters: ParametersSchema(
+                    type: "object",
+                    properties: [
+                        "title": PropertySchema(
+                            type: "string",
+                            description: "Заголовок заметки (используется как имя файла)",
+                            enumValues: nil,
+                            items: nil
+                        ),
+                        "content": PropertySchema(
+                            type: "string",
+                            description: "Содержимое заметки",
+                            enumValues: nil,
+                            items: nil
+                        )
+                    ],
+                    required: ["title", "content"]
+                )
+            )
+        )
+    }
+
+    static func listNotes() -> ToolDefinition {
+        ToolDefinition(
+            type: "function",
+            function: FunctionDefinition(
+                name: "list_notes",
+                description: "Возвращает список сохранённых заметок",
+                parameters: ParametersSchema(
+                    type: "object",
+                    properties: [:],
+                    required: nil
+                )
+            )
+        )
+    }
 }
