@@ -29,10 +29,10 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		CC0001002F43794C00DEB8B8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+		CC0001002F43794C00DEB8B8 /* Exceptions for "AI Advent Challenge" folder in "AI Advent Challenge" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				"Info.plist",
+				Info.plist,
 			);
 			target = 6D7544542F43794C00DEB8B8 /* AI Advent Challenge */;
 		};
@@ -42,7 +42,7 @@
 		6D7544572F43794C00DEB8B8 /* AI Advent Challenge */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				CC0001002F43794C00DEB8B8,
+				CC0001002F43794C00DEB8B8 /* Exceptions for "AI Advent Challenge" folder in "AI Advent Challenge" target */,
 			);
 			path = "AI Advent Challenge";
 			sourceTree = "<group>";

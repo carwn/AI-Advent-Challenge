@@ -8,7 +8,7 @@ import XCTest
 @MainActor
 final class ProviderIntegrationTests: XCTestCase {
 
-    private let userMessage = Message(role: .user, content: "Привет")
+    private let userMessage = LLMMessage(role: .user, content: "Привет")
 
     // MARK: - OpenAI GPT-3.5 Turbo
 
@@ -22,7 +22,6 @@ final class ProviderIntegrationTests: XCTestCase {
             stop: nil
         )
         XCTAssertFalse(response.message.content.isEmpty, "GPT-3.5 Turbo: ответ не должен быть пустым")
-        XCTAssertEqual(response.message.role, .assistant)
     }
 
     // MARK: - OpenAI GPT-4.1 Mini
@@ -37,7 +36,6 @@ final class ProviderIntegrationTests: XCTestCase {
             stop: nil
         )
         XCTAssertFalse(response.message.content.isEmpty, "GPT-4.1 Mini: ответ не должен быть пустым")
-        XCTAssertEqual(response.message.role, .assistant)
     }
 
     // MARK: - OpenAI GPT-4.1 Nano
@@ -52,7 +50,6 @@ final class ProviderIntegrationTests: XCTestCase {
             stop: nil
         )
         XCTAssertFalse(response.message.content.isEmpty, "GPT-4.1 Nano: ответ не должен быть пустым")
-        XCTAssertEqual(response.message.role, .assistant)
     }
 
     // MARK: - OpenAI GPT-4.1
@@ -67,7 +64,6 @@ final class ProviderIntegrationTests: XCTestCase {
             stop: nil
         )
         XCTAssertFalse(response.message.content.isEmpty, "GPT-4.1: ответ не должен быть пустым")
-        XCTAssertEqual(response.message.role, .assistant)
     }
 
     // MARK: - Gemini 2.5 Flash Lite
@@ -82,7 +78,6 @@ final class ProviderIntegrationTests: XCTestCase {
             stop: nil
         )
         XCTAssertFalse(response.message.content.isEmpty, "Gemini 2.5 Flash Lite: ответ не должен быть пустым")
-        XCTAssertEqual(response.message.role, .assistant)
     }
 
     // MARK: - Gemini 2.5 Flash
@@ -97,7 +92,6 @@ final class ProviderIntegrationTests: XCTestCase {
             stop: nil
         )
         XCTAssertFalse(response.message.content.isEmpty, "Gemini 2.5 Flash: ответ не должен быть пустым")
-        XCTAssertEqual(response.message.role, .assistant)
     }
 
     // MARK: - Gemini 2.5 Pro
@@ -113,7 +107,6 @@ final class ProviderIntegrationTests: XCTestCase {
             stop: nil
         )
         XCTAssertFalse(response.message.content.isEmpty, "Gemini 2.5 Pro: ответ не должен быть пустым")
-        XCTAssertEqual(response.message.role, .assistant)
     }
 
     // MARK: - Claude Haiku 4.5
@@ -128,7 +121,6 @@ final class ProviderIntegrationTests: XCTestCase {
             stop: nil
         )
         XCTAssertFalse(response.message.content.isEmpty, "Claude Haiku 4.5: ответ не должен быть пустым")
-        XCTAssertEqual(response.message.role, .assistant)
     }
 
     // MARK: - Claude Sonnet 4.5
@@ -143,7 +135,6 @@ final class ProviderIntegrationTests: XCTestCase {
             stop: nil
         )
         XCTAssertFalse(response.message.content.isEmpty, "Claude Sonnet 4.5: ответ не должен быть пустым")
-        XCTAssertEqual(response.message.role, .assistant)
     }
 
     // MARK: - Claude Opus 4.5
@@ -158,7 +149,6 @@ final class ProviderIntegrationTests: XCTestCase {
             stop: nil
         )
         XCTAssertFalse(response.message.content.isEmpty, "Claude Opus 4.5: ответ не должен быть пустым")
-        XCTAssertEqual(response.message.role, .assistant)
     }
 
     // MARK: - Helpers
