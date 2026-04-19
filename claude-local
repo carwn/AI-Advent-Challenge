@@ -1,0 +1,35 @@
+#!/bin/bash
+# Claude Code через локальный Ollama (192.168.1.141)
+# Использование: claude-local [-7b|-14b|-4b] [аргументы claude]
+
+OLLAMA_HOST="http://192.168.1.141:11434"
+MODEL="${LOCALCLAUDE_MODEL:-qwen2.5-coder:7b-32k}"
+
+case "$1" in
+  -7b)   MODEL="qwen2.5-coder:7b-32k"; shift ;;
+  -14b)  MODEL="qwen3:14b-14k";        shift ;;
+  -4b)   MODEL="qwen3.5:4b";           shift ;;
+  -h|--help)
+    echo "claude-local — Claude Code через локальный Ollama (192.168.1.141)"
+    echo ""
+    echo "Использование: claude-local [модель] [аргументы claude]"
+    echo ""
+    echo "Модели:"
+    echo "  -7b   qwen2.5-coder:7b  (по умолчанию, 32K контекст, быстрая)"
+    echo "  -14b  qwen3:14b         (умнее, 14K контекст — полностью в VRAM)"
+    echo "  -4b   qwen3.5:4b        (очень быстрая, слабее)"
+    echo ""
+    echo "Переменные окружения:"
+    echo "  LOCALCLAUDE_MODEL=<model>  переопределить модель по умолчанию"
+    echo ""
+    echo "Примеры:"
+    echo "  claude-local"
+    echo "  claude-local -14b"
+    echo "  claude-local -7b --print 'объясни этот код'"
+    exit 0
+    ;;
+esac
+
+ANTHROPIC_BASE_URL="$OLLAMA_HOST" \
+ANTHROPIC_API_KEY="local-ollama" \
+claude --model "$MODEL" "$@"
