@@ -46,7 +46,8 @@ MUST NOT:
 1. Check that the specific bug scenario is now handled correctly (trace the code path mentally or via test).
 2. Identify all places in the codebase that interact with the changed code (callers, subclasses, protocol conformances).
 3. Confirm none of them are broken by the change.
-4. If tests exist for this area — run them.
+4. If tests exist for this area — run them with `mcp__xcode__RunSomeTests`.
+5. If no tests exist for the fixed logic — announce **Профиль: Unit Test Writer** and write a regression test.
 
 MUST NOT:
 - Skip verification even for "obvious" fixes.
