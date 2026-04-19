@@ -113,4 +113,32 @@ struct ToolDefinition: Codable {
             )
         )
     }
+
+    static func saveNoteTool() -> ToolDefinition {
+        ToolDefinition(
+            type: "function",
+            function: FunctionDefinition(
+                name: "save_note",
+                description: "Save a note to disk with a given title and content",
+                parameters: ParametersSchema(
+                    type: "object",
+                    properties: [
+                        "title": PropertySchema(
+                            type: "string",
+                            description: "The note title (used as filename, without extension)",
+                            enumValues: nil,
+                            items: nil
+                        ),
+                        "content": PropertySchema(
+                            type: "string",
+                            description: "The full text content of the note",
+                            enumValues: nil,
+                            items: nil
+                        )
+                    ],
+                    required: ["title", "content"]
+                )
+            )
+        )
+    }
 }

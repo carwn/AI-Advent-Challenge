@@ -158,6 +158,7 @@ Each agent is a `final class` in `Domain/Agents/`, inheriting from `BaseAgent`. 
 | `SolverAgent` | Автономный решатель | cpu | — | — | — | None |
 | `MCPAgent` | MCP агент | network | **0.2** (dispatch) | **500** (dispatch) | — | None |
 | `RAGAgent` | SwiftUI Docs | book.pages | — | **1500** | — | None |
+| `NotepadAgent` | Блокнот | note.text | — | **500** | **save_note** | None |
 
 _(— means BaseAgent default: temperature 0.7, maxTokens 1000, stopWords nil, availableTools [])_
 
@@ -374,6 +375,7 @@ API context sent to LLM:
 - `get_weather` — WeatherResult with location, temperature, condition, humidity. Mock: 0.5 s delay, random values.
 - `calculate` — operations: add/subtract/multiply/divide on an array of operands. Synchronous.
 - `search` — SearchResults with title, snippet, url arrays. Mock: 0.7 s delay, 3 hardcoded results.
+- `save_note` — записывает заметку в `AgentState/notes/<title>.txt` через `NotesPersistenceService`. `NotesPersistenceService` — `lazy var` в `DependencyContainer`, инжектируется в `DefaultToolExecutor(notesPersistenceService:)`. Символы `/` и `\` в `title` заменяются на `_`.
 
 `ToolDefinition` factory methods for all tools live in `Domain/Models/ToolDefinition.swift`.
 
