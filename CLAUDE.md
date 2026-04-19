@@ -457,3 +457,241 @@ API context sent to LLM:
 3. Add model cases to `ProviderType` enum in `ProviderFactory.swift` with display name and pricing.
 4. Handle new cases in `ProviderFactory.createProvider()`.
 5. To support streaming: override `supportsStreaming: Bool { true }` and implement `streamComplete()` returning `AsyncThrowingStream<StreamChunk, Error>`. Yield `.thinking(delta)` for reasoning tokens, `.content(delta)` for response tokens, `.usage(info)` for final stats. See `OllamaProvider` as reference. Note: local providers (Ollama) pass `maxTokens: nil` to avoid cutting off responses.
+
+## Code Style & Conventions
+
+### Good code examples
+
+**1. Minimal agent (no tools, no compression)**
+
+```swift
+// Domain/Agents/GeneralAgent.swift
+import Foundation
+
+final class GeneralAgent: BaseAgent {
+    override var name: String { "Универсальный ассистент" }
+    override var icon: String { "brain" }
+    override var description: String { "Универсальный помощник для любых задач" }
+
+    init(sendMessage: any SendMessageToLMMUseCase, persistence: ConversationPersistenceService, conversationId: UUID) {
+        super.init(
+            sendMessage: sendMessage,
+            persistence: persistence,
+            systemPrompt: "You are a helpful AI assistant.",
+            conversationId: conversationId
+        )
+    }
+}
+```
+
+**2. Agent with tool (override `availableTools` + `maxTokens`)**
+
+```swift
+// Domain/Agents/WeatherAgent.swift
+import Foundation
+
+final class WeatherAgent: BaseAgent {
+    override var name: String { "Агент погоды" }
+    override var icon: String { "cloud.sun" }
+    override var description: String { "Специализируется на предоставлении информации о погоде в любом месте" }
+    override var maxTokens: Int { 500 }
+    override var availableTools: [ToolDefinition] { [.weatherTool()] }
+
+    init(sendMessage: any SendMessageToLMMUseCase, persistence: ConversationPersistenceService, conversationId: UUID) {
+        super.init(
+            sendMessage: sendMessage,
+            persistence: persistence,
+            systemPrompt: "You are a weather assistant...",
+            conversationId: conversationId
+        )
+    }
+}
+```
+
+**3. Agent with compression policy (injected from DependencyContainer)**
+
+```swift
+// Domain/Agents/ContextManagedAgent.swift
+import Foundation
+
+final class ContextManagedAgent: BaseAgent {
+    override var name: String { "Агент с памятью" }
+    override var icon: String { "memorychip" }
+    override var description: String { "..." }
+
+    init(
+        sendMessage: any SendMessageToLMMUseCase,
+        persistence: ConversationPersistenceService,
+        conversationId: UUID,
+        compressionPolicy: (any ContextCompressionPolicy)? = nil
+    ) {
+        super.init(
+            sendMessage: sendMessage,
+            persistence: persistence,
+            systemPrompt: "...",
+            conversationId: conversationId,
+            compressionPolicy: compressionPolicy
+        )
+    }
+}
+```
+
+**4. ToolDefinition factory method (in `ToolDefinition.swift`)**
+
+```swift
+static func myTool() -> ToolDefinition {
+    ToolDefinition(
+        type: "function",
+        function: FunctionDefinition(
+            name: "my_tool_name",
+            description: "What this tool does",
+            parameters: ParametersSchema(
+                type: "object",
+                properties: [
+                    "param": PropertySchema(type: "string", description: "...", enumValues: nil, items: nil)
+                ],
+                required: ["param"]
+            )
+        )
+    )
+}
+```
+
+**5. Tool registration in `DefaultToolExecutor`**
+
+```swift
+// canExecute — добавить кейс
+case "my_tool_name": return true
+
+// execute — добавить кейс
+case "my_tool_name": return try await executeMyTool(arguments: arguments)
+
+// приватный метод
+private func executeMyTool(arguments: String) async throws -> String {
+    guard let data = arguments.data(using: .utf8),
+          let params = try? JSONDecoder().decode(MyToolParams.self, from: data) else {
+        throw ToolExecutionError.invalidArguments(arguments)
+    }
+    // реализация
+    return result.toJSON()
+}
+```
+
+---
+
+### Anti-patterns (запрещено)
+
+**1. Прямой доступ к FileManager вместо `ConversationPersistenceService`**
+
+```swift
+// ❌ НЕЛЬЗЯ — обходит абстракцию персистентности
+let url = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+    .appendingPathComponent("notes/\(title).txt")
+try content.write(to: url, atomically: true, encoding: .utf8)
+
+// ✅ НАДО — использовать ConversationPersistenceService или создавать отдельный сервис
+// с инъекцией через DependencyContainer
+```
+
+**2. Создание `SendMessageToLMMInteractor` внутри агента**
+
+```swift
+// ❌ НЕЛЬЗЯ — агент не должен создавать провайдер сам
+final class BadAgent: BaseAgent {
+    init(conversationId: UUID) {
+        let provider = OpenAIProvider(...)  // прямая зависимость
+        let useCase = SendMessageToLMMInteractor(provider: provider, ...)
+        super.init(sendMessage: useCase, ...)
+    }
+}
+
+// ✅ НАДО — получать `any SendMessageToLMMUseCase` через init
+init(sendMessage: any SendMessageToLMMUseCase, persistence: ConversationPersistenceService, conversationId: UUID)
+```
+
+**3. Хранение состояния агента без персистентности**
+
+```swift
+// ❌ НЕЛЬЗЯ — состояние теряется при перезапуске
+final class BadAgent: BaseAgent {
+    var notes: [String] = []  // не сохраняется
+}
+
+// ✅ НАДО — сохранять в AgentState/<conversationId>_<suffix>.json через JSONEncoder/JSONDecoder
+// или использовать ConversationPersistenceService
+```
+
+**4. Использование `print()` для логирования**
+
+```swift
+// ❌ НЕЛЬЗЯ
+print("Request sent: \(url)")
+
+// ✅ НАДО — NetworkLogger через DependencyContainer, или os.Logger напрямую
+```
+
+**5. Регистрация агента без шаблона в `agentTemplates`**
+
+```swift
+// ❌ НЕЛЬЗЯ — агент без шаблона невидим в UI
+case "my_agent": return MyAgent(...)  // только в makeAgent, без AgentTemplate
+
+// ✅ НАДО — добавить AgentTemplate в agentTemplates И case в makeAgent
+```
+
+---
+
+### Шаблон нового агента
+
+```swift
+//
+//  MyAgent.swift
+//  AI Advent Challenge
+//
+
+import Foundation
+
+final class MyAgent: BaseAgent {
+    // MARK: - Identity (обязательно переопределить)
+    override var name: String { "Имя агента" }
+    override var icon: String { "sf.symbol.name" }
+    override var description: String { "Краткое описание для UI выбора агента" }
+
+    // MARK: - Overrides (только то, что отличается от BaseAgent defaults)
+    // override var temperature: Double { 0.7 }   // default
+    // override var maxTokens: Int { 1000 }        // default
+    // override var availableTools: [ToolDefinition] { [] }  // default
+
+    // MARK: - Init (сигнатура строго фиксирована)
+    init(
+        sendMessage: any SendMessageToLMMUseCase,
+        persistence: ConversationPersistenceService,
+        conversationId: UUID
+    ) {
+        super.init(
+            sendMessage: sendMessage,
+            persistence: persistence,
+            systemPrompt: "System prompt for this agent.",
+            conversationId: conversationId
+            // compressionPolicy: nil  // передать если нужна компрессия
+        )
+    }
+}
+```
+
+**Регистрация в `DependencyContainer`:**
+
+```swift
+// 1. В agentTemplates:
+AgentTemplate(
+    id: "my_agent",
+    name: "Имя агента",
+    icon: "sf.symbol.name",
+    description: "Описание",
+    compressionPolicyDescription: nil
+)
+
+// 2. В makeAgent(record:):
+case "my_agent":
+    return MyAgent(sendMessage: useCase, persistence: conversationPersistence, conversationId: id)
+```
