@@ -12,6 +12,7 @@ enum APIEndpoint {
     case geminiGenerateContent(model: String)
     case anthropicMessages
     case ollamaChatCompletion(host: String = "localhost")
+    case deepSeekChatCompletion
 
     var url: URL {
         switch self {
@@ -23,6 +24,8 @@ enum APIEndpoint {
             return URL(string: "https://api.proxyapi.ru/anthropic/v1/messages")!
         case .ollamaChatCompletion(let host):
             return URL(string: "http://\(host):11434/v1/chat/completions")!
+        case .deepSeekChatCompletion:
+            return URL(string: "https://api.proxyapi.ru/deepseek/chat/completions")!
         }
     }
 }

@@ -24,6 +24,7 @@ enum ProviderType: String, CaseIterable {
     case ollamaQwen35Pirate = "ollama_qwen35_pirate"
     case ollamaWinQwen35_4b = "ollama_win_qwen35_4b"
     case ollamaWinQwen3_14b = "ollama_win_qwen3_14b"
+    case deepseekChat = "deepseek-chat"
 
     var displayName: String {
         switch self {
@@ -43,6 +44,7 @@ enum ProviderType: String, CaseIterable {
         case .ollamaQwen35Pirate: return "Qwen 3.5 4B — Pirate (Ollama)"
         case .ollamaWinQwen35_4b: return "Qwen 3.5 4B (Win PC)"
         case .ollamaWinQwen3_14b: return "Qwen 3 14B (Win PC)"
+        case .deepseekChat: return "DeepSeek Chat"
         }
     }
 
@@ -65,6 +67,7 @@ enum ProviderType: String, CaseIterable {
         case .ollamaQwen35Pirate:   return (0, 0)
         case .ollamaWinQwen35_4b:   return (0, 0)
         case .ollamaWinQwen3_14b:   return (0, 0)
+        case .deepseekChat:         return (130, 520)
         }
     }
 }
@@ -122,6 +125,8 @@ final class ProviderFactory {
             return AnthropicProvider(modelName: "claude-sonnet-4-5", networkClient: networkClient, apiKey: apiKey)
         case .claudeOpus45:
             return AnthropicProvider(modelName: "claude-opus-4-5", networkClient: networkClient, apiKey: apiKey)
+        case .deepseekChat:
+            return DeepSeekProvider(modelName: "deepseek-chat", networkClient: networkClient, apiKey: apiKey)
         default:
             // Ollama-кейсы обработаны выше
             fatalError("Unhandled provider type: \(type)")
