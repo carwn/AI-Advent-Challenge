@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct AgentResponse {
+struct AgentResponse: Sendable {
     let message: LLMResponse
     let requiresToolExecution: Bool
     let finishReason: FinishReason
@@ -15,14 +15,14 @@ struct AgentResponse {
     var modelName: String? = nil
 }
 
-enum FinishReason: String {
+enum FinishReason: String, Sendable {
     case stop
     case toolCalls = "tool_calls"
     case length
     case contentFilter = "content_filter"
 }
 
-struct UsageInfo {
+struct UsageInfo: Sendable {
     let promptTokens: Int
     let completionTokens: Int
     let totalTokens: Int

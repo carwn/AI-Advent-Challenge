@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct Message: Identifiable, Equatable, Codable {
+struct Message: Identifiable, Equatable, Codable, Sendable {
     let id: UUID
     let role: MessageRole
     let content: String
@@ -47,7 +47,7 @@ struct Message: Identifiable, Equatable, Codable {
     }
 }
 
-enum MessageRole: String, Codable {
+enum MessageRole: String, Codable, Sendable {
     case system
     case user
     case assistant
@@ -55,12 +55,12 @@ enum MessageRole: String, Codable {
     case summaryUsage
 }
 
-struct ToolCall: Identifiable, Codable, Equatable {
+struct ToolCall: Identifiable, Codable, Equatable, Sendable {
     let id: String
     let type: String
     let function: FunctionCall
 
-    struct FunctionCall: Codable, Equatable {
+    struct FunctionCall: Codable, Equatable, Sendable {
         let name: String
         let arguments: String // JSON string
     }

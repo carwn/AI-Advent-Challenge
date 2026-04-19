@@ -9,7 +9,7 @@ import Foundation
 
 /// Исходящее сообщение для API-запроса к LLM-провайдеру.
 /// Может иметь любую роль (system, user, assistant, tool).
-struct LLMMessage {
+struct LLMMessage: Sendable {
     let role: MessageRole
     let content: String
     let toolCalls: [ToolCall]?
@@ -25,7 +25,7 @@ struct LLMMessage {
 
 /// Входящий ответ от LLM-провайдера.
 /// Всегда имеет роль assistant — поле role отсутствует.
-struct LLMResponse {
+struct LLMResponse: Sendable {
     let content: String
     let toolCalls: [ToolCall]?
     let reasoning: String?  // Размышления модели (Ollama, Anthropic thinking и т.д.)
