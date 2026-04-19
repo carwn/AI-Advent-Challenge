@@ -129,9 +129,9 @@ final class NetworkClient {
 
                     for try await line in asyncBytes.lines {
                         if Task.isCancelled { break }
-                        guard line.hasPrefix("data: ") else { continue }
-                        let jsonString = String(line.dropFirst(6))
-                        if jsonString == "[DONE]" { break }
+                        guard line.hasPrefix(NetworkConstants.SSE.dataPrefix) else { continue }
+                        let jsonString = String(line.dropFirst(NetworkConstants.SSE.dataPrefix.count))
+                        if jsonString == NetworkConstants.SSE.doneMarker { break }
                         continuation.yield(jsonString)
                     }
                     continuation.finish()
