@@ -30,6 +30,11 @@ MUST NOT:
 
 ## Phase 3 — Synthesize
 
+**Calibrate depth to the question scope:**
+- Lookup ("where is X?", "what file handles Y?") → 2-3 files, direct answer, short paragraph
+- Behavioral ("how does X work?") → full call chain, medium analysis
+- Architecture ("how is the whole X system designed?") → all key files, full report with diagrams
+
 1. Identify the key files (≤7) most central to answering the question.
 2. Map the relationships between them.
 3. Note any surprising, non-obvious, or counter-intuitive findings.

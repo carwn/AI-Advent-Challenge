@@ -24,6 +24,8 @@ MUST DO before writing any code:
 
 Path: `Domain/Agents/<AgentName>.swift`
 
+**Always use absolute paths** when creating files — the worktree or working directory may differ from the project root. Resolve the correct absolute path by reading `App/DependencyContainer.swift` first (you'll know where the project root is).
+
 Template:
 ```swift
 final class <AgentName>: BaseAgent {
