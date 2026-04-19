@@ -11,15 +11,18 @@ final class DefaultToolExecutor: ToolExecutor {
     private let weatherService: WeatherService?
     private let calculatorService: CalculatorService?
     private let searchService: SearchService?
+    private let notesPersistenceService: NotesPersistenceService?
 
     init(
         weatherService: WeatherService? = nil,
         calculatorService: CalculatorService? = nil,
-        searchService: SearchService? = nil
+        searchService: SearchService? = nil,
+        notesPersistenceService: NotesPersistenceService? = nil
     ) {
         self.weatherService = weatherService ?? DefaultWeatherService()
         self.calculatorService = calculatorService ?? DefaultCalculatorService()
         self.searchService = searchService ?? DefaultSearchService()
+        self.notesPersistenceService = notesPersistenceService
     }
 
     func canExecute(toolName: String) -> Bool {
@@ -30,6 +33,8 @@ final class DefaultToolExecutor: ToolExecutor {
             return calculatorService != nil
         case "search":
             return searchService != nil
+        case "save_note":
+            return notesPersistenceService != nil
         default:
             return false
         }
@@ -46,6 +51,8 @@ final class DefaultToolExecutor: ToolExecutor {
             return try executeCalculate(arguments: arguments)
         case "search":
             return try await executeSearch(arguments: arguments)
+        case "save_note":
+            return try executeSaveNote(arguments: arguments)
         default:
             throw ToolExecutionError.unsupportedTool(functionName)
         }
@@ -80,6 +87,18 @@ final class DefaultToolExecutor: ToolExecutor {
             operands: params.operands
         )
         return "{\"result\": \(result)}"
+    }
+
+    private func executeSaveNote(arguments: String) throws -> String {
+        guard let service = notesPersistenceService else {
+            throw ToolExecutionError.unsupportedTool("save_note")
+        }
+        guard let data = arguments.data(using: .utf8),
+              let params = try? JSONDecoder().decode(SaveNoteParams.self, from: data) else {
+            throw ToolExecutionError.invalidArguments(arguments)
+        }
+        try service.saveNote(title: params.title, content: params.content)
+        return "{\"status\": \"saved\", \"title\": \"\(params.title)\"}"
     }
 
     private func executeSearch(arguments: String) async throws -> String {
@@ -129,6 +148,11 @@ struct CalculatorParams: Codable {
 
 struct SearchParams: Codable {
     let query: String
+}
+
+struct SaveNoteParams: Codable {
+    let title: String
+    let content: String
 }
 
 // MARK: - Tool Service Protocols

@@ -113,4 +113,32 @@ struct ToolDefinition: Codable {
             )
         )
     }
+
+    static func saveNoteTool() -> ToolDefinition {
+        ToolDefinition(
+            type: "function",
+            function: FunctionDefinition(
+                name: "save_note",
+                description: "Save a note to a file. The note is persisted as AgentState/notes/<title>.txt",
+                parameters: ParametersSchema(
+                    type: "object",
+                    properties: [
+                        "title": PropertySchema(
+                            type: "string",
+                            description: "The note title (used as filename)",
+                            enumValues: nil,
+                            items: nil
+                        ),
+                        "content": PropertySchema(
+                            type: "string",
+                            description: "The note content",
+                            enumValues: nil,
+                            items: nil
+                        )
+                    ],
+                    required: ["title", "content"]
+                )
+            )
+        )
+    }
 }

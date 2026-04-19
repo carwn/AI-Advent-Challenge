@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**AI Advent Challenge** is an iOS SwiftUI app that lets users chat with AI agents powered by multiple LLM providers (OpenAI, Anthropic, Google Gemini via ProxyAPI.ru, and local Ollama). Users can create multiple named conversations, each tied to one of 12 specialized agents, switch between 16 models (10 cloud + 6 local Ollama), and agents can call tools (weather, calculator, search, Tavily MCP) as part of their responses. Conversations can be branched, creating a tree of forked chats. Thinking/reasoning models stream their reasoning process live as a collapsible 🤔 block.
+**AI Advent Challenge** is an iOS SwiftUI app that lets users chat with AI agents powered by multiple LLM providers (OpenAI, Anthropic, Google Gemini via ProxyAPI.ru, and local Ollama). Users can create multiple named conversations, each tied to one of 13 specialized agents, switch between 16 models (10 cloud + 6 local Ollama), and agents can call tools (weather, calculator, search, save_note, Tavily MCP) as part of their responses. Conversations can be branched, creating a tree of forked chats. Thinking/reasoning models stream their reasoning process live as a collapsible 🤔 block.
 
 ## Build & Run
 
@@ -55,7 +55,7 @@ Domain/
   Models/        — Message, Conversation, ConversationRecord, AgentResponse,
                    ToolDefinition, LLMMessage, LLMResponse
   Protocols/     — Agent, LLMProvider, ToolExecutor, ContextCompressionPolicy
-  Agents/        — BaseAgent (base class), 12 concrete agent classes
+  Agents/        — BaseAgent (base class), 13 concrete agent classes
     Compression/ — SummaryContextCompressionPolicy,
                    SlidingWindowContextCompressionPolicy,
                    StickyFactsCompressionPolicy,
@@ -79,8 +79,9 @@ Infrastructure/
                    MCPClient (JSON-RPC 2.0 MCP client, Streamable HTTP + SSE),
                    MCPModels (DTOs: JSONRPCRequest, MCPTool, AnyCodableValue, etc.)
   Security/      — KeychainService, APIKeyManager
-  Tools/         — DefaultToolExecutor with mock WeatherService, CalculatorService, SearchService
-  Persistence/   — ConversationPersistenceService (save/load/delete Conversation JSON by UUID)
+  Tools/         — DefaultToolExecutor with mock WeatherService, CalculatorService, SearchService, NotesPersistenceService
+  Persistence/   — ConversationPersistenceService (save/load/delete Conversation JSON by UUID),
+                   NotesPersistenceService (save notes to AgentState/notes/<title>.txt)
   RAG/           — RAGService (façade), EmbeddingService (protocol), VectorIndex (~8400 chunks),
                    BertTokenizer, chunks.json, vocab.txt, BAAI_bge-small-en-v1.5.mlpackage
 
@@ -158,6 +159,7 @@ Each agent is a `final class` in `Domain/Agents/`, inheriting from `BaseAgent`. 
 | `SolverAgent` | Автономный решатель | cpu | — | — | — | None |
 | `MCPAgent` | MCP агент | network | **0.2** (dispatch) | **500** (dispatch) | — | None |
 | `RAGAgent` | SwiftUI Docs | book.pages | — | **1500** | — | None |
+| `NotepadAgent` | Блокнот | note.text | — | — | **save_note** | None |
 
 _(— means BaseAgent default: temperature 0.7, maxTokens 1000, stopWords nil, availableTools [])_
 
@@ -374,6 +376,7 @@ API context sent to LLM:
 - `get_weather` — WeatherResult with location, temperature, condition, humidity. Mock: 0.5 s delay, random values.
 - `calculate` — operations: add/subtract/multiply/divide on an array of operands. Synchronous.
 - `search` — SearchResults with title, snippet, url arrays. Mock: 0.7 s delay, 3 hardcoded results.
+- `save_note(title, content)` — persists note to `AgentState/notes/<title>.txt` via `NotesPersistenceService`. Returns `{"status":"saved","title":"..."}`. Used only by `NotepadAgent`.
 
 `ToolDefinition` factory methods for all tools live in `Domain/Models/ToolDefinition.swift`.
 

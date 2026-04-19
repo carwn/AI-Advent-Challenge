@@ -32,7 +32,8 @@ final class DependencyContainer: ObservableObject {
     )
 
     // Domain Layer
-    private lazy var toolExecutor: ToolExecutor = DefaultToolExecutor()
+    private lazy var notesPersistenceService = NotesPersistenceService()
+    private lazy var toolExecutor: ToolExecutor = DefaultToolExecutor(notesPersistenceService: notesPersistenceService)
     lazy var conversationPersistence = ConversationPersistenceService()
     lazy var branchConversation: any BranchConversationUseCase =
         BranchConversationInteractor(persistence: conversationPersistence)
@@ -115,6 +116,11 @@ final class DependencyContainer: ObservableObject {
                           name: "SwiftUI Docs",
                           icon: "book.pages",
                           description: "Отвечает на вопросы по документации SwiftUI из встроенной базы знаний",
+                          compressionPolicyDescription: nil),
+            AgentTemplate(id: "notepad_agent",
+                          name: "Блокнот",
+                          icon: "note.text",
+                          description: "Сохраняет заметки в файлы AgentState/notes/<title>.txt через инструмент save_note",
                           compressionPolicyDescription: nil),
         ]
     }
@@ -209,6 +215,8 @@ final class DependencyContainer: ObservableObject {
                 persistence: conversationPersistence,
                 conversationId: id
             )
+        case "notepad_agent":
+            return NotepadAgent(sendMessage: useCase, persistence: conversationPersistence, conversationId: id)
         default:
             return GeneralAgent(sendMessage: useCase, persistence: conversationPersistence, conversationId: id)
         }
