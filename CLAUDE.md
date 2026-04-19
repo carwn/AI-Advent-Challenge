@@ -2,6 +2,16 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Work Profiles
+
+Before executing any task, detect the work profile from the user's request:
+
+1. Read `profiles/index.md` to see available profiles and their trigger keywords.
+2. If a profile matches — announce its name (e.g., **Профиль: Bug Fix**), then read the corresponding profile file and follow its instructions strictly for the entire task.
+3. If no profile matches — proceed without a profile (no announcement needed).
+
+Profile files contain step-by-step instructions, invariants, and output format requirements. They override default behavior for their scope.
+
 ## Project Overview
 
 **AI Advent Challenge** is an iOS SwiftUI app that lets users chat with AI agents powered by multiple LLM providers (OpenAI, Anthropic, Google Gemini via ProxyAPI.ru, and local Ollama). Users can create multiple named conversations, each tied to one of 12 specialized agents, switch between 16 models (10 cloud + 6 local Ollama), and agents can call tools (weather, calculator, search, Tavily MCP) as part of their responses. Conversations can be branched, creating a tree of forked chats. Thinking/reasoning models stream their reasoning process live as a collapsible 🤔 block.
