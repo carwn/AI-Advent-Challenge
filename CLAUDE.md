@@ -639,6 +639,32 @@ case "my_agent": return MyAgent(...)  // только в makeAgent, без Agent
 // ✅ НАДО — добавить AgentTemplate в agentTemplates И case в makeAgent
 ```
 
+**6. Неправильный модификатор доступа для сервисов в `DependencyContainer`**
+
+```swift
+// ❌ НЕЛЬЗЯ — сервисы, используемые только внутри DependencyContainer, торчат наружу
+lazy var notesPersistenceService = NotesPersistenceService()   // видно всем
+
+// ✅ НАДО — private lazy var для всего, что не нужно SwiftUI-слою
+private lazy var notesPersistenceService = NotesPersistenceService()
+```
+
+Правило доступа в `DependencyContainer`:
+- `private lazy var` — инфраструктура и сервисы, нужные только для создания других зависимостей (`keychainService`, `networkClient`, `providerFactory`, `toolExecutor`)
+- `lazy var` (без private) — только то, что напрямую используется из SwiftUI: `apiKeyManager`, `conversationPersistence`, `messageHistoryStore`, `modelStore`, `longTermMemoryStore`
+
+**7. Мёртвый код в новых сервисах**
+
+```swift
+// ❌ НЕЛЬЗЯ — добавлять методы, не подключённые ни к одному инструменту/flow
+final class NotesPersistenceService {
+    func saveNote(...) { ... }   // используется
+    func listNotes() -> [String] { ... }  // не подключено к инструменту — мёртвый код
+}
+
+// ✅ НАДО — добавлять только то, что реально вызывается в текущей задаче
+```
+
 ---
 
 ### Шаблон нового агента
@@ -695,3 +721,13 @@ AgentTemplate(
 case "my_agent":
     return MyAgent(sendMessage: useCase, persistence: conversationPersistence, conversationId: id)
 ```
+
+**Если агенту нужен новый сервис (не `ConversationPersistenceService`):**
+
+```swift
+// DependencyContainer — сервис всегда private lazy var (только для внутреннего DI)
+private lazy var myService = MyService()
+private lazy var toolExecutor: ToolExecutor = DefaultToolExecutor(myService: myService)
+```
+
+Не делать сервис `lazy var` без `private`, если он не нужен SwiftUI-слою напрямую.
