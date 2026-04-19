@@ -39,26 +39,9 @@ struct ToolCallParams: Encodable {
     let arguments: JSONObject
 }
 
-// MARK: - JSONObject (Encodable [String: Any])
+// MARK: - JSONObject
 
-struct JSONObject: Encodable {
-    let dict: [String: AnyCodableValue]
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: DynamicKey.self)
-        for (key, value) in dict {
-            let codingKey = DynamicKey(stringValue: key)!
-            try container.encode(value, forKey: codingKey)
-        }
-    }
-
-    struct DynamicKey: CodingKey {
-        var stringValue: String
-        var intValue: Int? { nil }
-        init?(stringValue: String) { self.stringValue = stringValue }
-        init?(intValue: Int) { nil }
-    }
-}
+typealias JSONObject = [String: AnyCodableValue]
 
 indirect enum AnyCodableValue: Codable {
     case string(String)
@@ -100,8 +83,8 @@ indirect enum AnyCodableValue: Codable {
 struct MCPTool: Decodable {
     let name: String
     let description: String?
-    /// Сырая JSON Schema — хранится как [String: AnyCodableValue] для гибкости
-    let inputSchema: [String: AnyCodableValue]?
+    /// Сырая JSON Schema — хранится как JSONObject для гибкости
+    let inputSchema: JSONObject?
 
     /// Извлекает список параметров из inputSchema
     func parameters() -> [(name: String, type: String?, description: String?, required: Bool)] {

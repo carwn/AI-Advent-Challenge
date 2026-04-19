@@ -339,7 +339,7 @@ final class MCPAgent: BaseAgent {
     /// Выполняет MCP-инструмент и возвращает сырой результат. Используется в агентном цикле.
     private func executeMCPCall(
         toolName: String,
-        args: [String: AnyCodableValue]
+        args: JSONObject
     ) async -> String {
         guard let routing = toolRegistry[toolName] else {
             return "Инструмент «\(toolName)» не найден."
@@ -368,7 +368,7 @@ final class MCPAgent: BaseAgent {
 
     private func executeCallAction(
         toolName: String,
-        args: [String: AnyCodableValue],
+        args: JSONObject,
         originalText: String,
         allEntries: [(tool: MCPTool, server: MCPServer)]
     ) async -> String {
@@ -443,7 +443,7 @@ final class MCPAgent: BaseAgent {
         )
     }
 
-    private func executeTool(client: MCPClient, name: String, args: [String: AnyCodableValue]) async -> String {
+    private func executeTool(client: MCPClient, name: String, args: JSONObject) async -> String {
         do {
             let result = try await client.callTool(name: name, arguments: args)
             return formatResult(result, toolName: name)
@@ -617,8 +617,8 @@ final class MCPAgent: BaseAgent {
 
     private enum LLMAction {
         case list
-        case call(tool: String, args: [String: AnyCodableValue])
-        case parallelCall(tools: [(name: String, args: [String: AnyCodableValue])])
+        case call(tool: String, args: JSONObject)
+        case parallelCall(tools: [(name: String, args: JSONObject)])
         case chat(reply: String)
         case schedule(description: String, intervalSeconds: Int)
         case cancelTask(description: String)
@@ -632,7 +632,7 @@ final class MCPAgent: BaseAgent {
         while searchFrom < text.endIndex {
             guard let jsonStr = extractFirstJSON(from: String(text[searchFrom...])),
                   let data = jsonStr.data(using: .utf8),
-                  let obj = try? JSONDecoder().decode([String: AnyCodableValue].self, from: data)
+                  let obj = try? JSONDecoder().decode(JSONObject.self, from: data)
             else { break }
 
             if let action = resolveAction(from: obj) {
@@ -648,7 +648,7 @@ final class MCPAgent: BaseAgent {
         return .unknown
     }
 
-    private func resolveAction(from obj: [String: AnyCodableValue]) -> LLMAction? {
+    private func resolveAction(from obj: JSONObject) -> LLMAction? {
         guard case .string(let action) = obj["action"] else { return nil }
 
         switch action {
@@ -657,16 +657,16 @@ final class MCPAgent: BaseAgent {
 
         case "call":
             guard case .string(let toolName) = obj["tool"] else { return nil }
-            var args: [String: AnyCodableValue] = [:]
+            var args: JSONObject = [:]
             if case .object(let argsObj) = obj["args"] { args = argsObj }
             // Обработка multi_tool_use.parallel от OpenAI
             if toolName == "multi_tool_use.parallel",
                case .array(let uses) = args["tool_uses"] {
-                var tools: [(name: String, args: [String: AnyCodableValue])] = []
+                var tools: [(name: String, args: JSONObject)] = []
                 for use in uses {
                     guard case .object(let useDict) = use,
                           case .string(let recipientName) = useDict["recipient_name"] else { continue }
-                    var toolArgs: [String: AnyCodableValue] = [:]
+                    var toolArgs: JSONObject = [:]
                     if case .object(let params) = useDict["parameters"] { toolArgs = params }
                     tools.append((name: recipientName, args: toolArgs))
                 }
@@ -705,7 +705,7 @@ final class MCPAgent: BaseAgent {
             } else {
                 toolName = action
             }
-            var args: [String: AnyCodableValue] = [:]
+            var args: JSONObject = [:]
             if case .object(let argsObj) = obj["args"] { args = argsObj }
             return .call(tool: toolName, args: args)
         }

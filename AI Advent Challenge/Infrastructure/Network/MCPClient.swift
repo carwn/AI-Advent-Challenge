@@ -49,9 +49,9 @@ final class MCPClient {
         return response.result?.tools ?? []
     }
 
-    func callTool(name: String, arguments: [String: AnyCodableValue]) async throws -> MCPToolCallResponse.ToolCallResult {
+    func callTool(name: String, arguments: JSONObject) async throws -> MCPToolCallResponse.ToolCallResult {
         if streamableSessionId == nil { try? await initStreamable() }
-        let params = ToolCallParams(name: name, arguments: JSONObject(dict: arguments))
+        let params = ToolCallParams(name: name, arguments: arguments)
         let req = JSONRPCRequest(id: nextId(), method: "tools/call", params: params)
         let response: MCPToolCallResponse = try await postStreamable(body: req)
         if let error = response.error {
