@@ -91,12 +91,11 @@ final class SolverAgent: BaseAgent {
         self.currentModelName = modelName
         self.solverState = SolverState()
 
-        let appSupport = FileManager.default
-            .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        self.solverStateFileURL = appSupport
-            .appendingPathComponent("AgentState/\(conversationId.uuidString)_solver_state.json")
-        self.invariantsFileURL = appSupport
-            .appendingPathComponent("AgentState/\(conversationId.uuidString)_solver_invariants.json")
+        let stateDir = FileManager.default.agentStateDirectory()
+        self.solverStateFileURL = stateDir
+            .appendingPathComponent("\(conversationId.uuidString)_solver_state.json")
+        self.invariantsFileURL = stateDir
+            .appendingPathComponent("\(conversationId.uuidString)_solver_invariants.json")
 
         let systemPrompt = """
         Ты — автономный решатель задач. \

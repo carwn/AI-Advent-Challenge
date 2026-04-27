@@ -90,10 +90,8 @@ final class UserProfileAgent: BaseAgent {
         self.longTermMemoryStore = longTermMemoryStore
         self.profilingState = ProfilingState()
 
-        let appSupport = FileManager.default
-            .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        self.profileStateFileURL = appSupport
-            .appendingPathComponent("AgentState/\(conversationId.uuidString)_profile.json")
+        self.profileStateFileURL = FileManager.default.agentStateDirectory()
+            .appendingPathComponent("\(conversationId.uuidString)_profile.json")
 
         let systemPrompt = """
         Ты — профайлер, который помогает собрать информацию о предпочтениях пользователя. \
